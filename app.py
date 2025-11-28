@@ -138,6 +138,10 @@ app = FastAPI()
 from fastapi.staticfiles import StaticFiles
 
 # Serve uploaded files
+# Create uploads directory if it doesn't exist
+import os
+os.makedirs("uploads/wardrobe", exist_ok=True)
+os.makedirs("uploads/canvas", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # Initialize database
 init_db()
