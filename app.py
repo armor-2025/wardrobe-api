@@ -9,9 +9,9 @@ import os, io, json
 import numpy as np
 import requests
 from PIL import Image
-import torch
-import faiss
-import open_clip
+#import torch
+#import faiss
+#import open_clip
 
 from fastapi import HTTPException  # add this with your other FastAPI imports
 from asos_service import get_asos_service
