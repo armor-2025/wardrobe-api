@@ -45,12 +45,9 @@ class VisionService:
             
             prompt = """Analyze this clothing item and return ONLY a JSON object with these fields:
 {
-  "category": "tops|bottoms|outerwear|footwear|accessories|dresses",
-  "subcategory": "specific type like t-shirt, jeans, sneakers, blazer, etc.",
-  "color": "primary color (red, blue, black, white, green, pink, brown, grey, yellow, orange, purple, beige, navy, cream, etc.)",
-  "fabric": "denim|cotton|silk|leather|wool|cashmere|linen|polyester|nylon|suede|velvet|satin|knit|unknown",
-  "pattern": "solid|striped|floral|checkered|polka-dot|animal-print|graphic|abstract|plain|other",
-  "style_tags": ["casual", "formal", "vintage", "modern", "sporty", "elegant", "streetwear", "minimalist", etc. - up to 3 tags]
+  "category": "tops|bottoms|outerwear|footwear|accessories|dresses (REQUIRED - must be one of these)",
+  "description": "specific item type like: wide leg pants, skinny jeans, denim jacket, longsleeve top, mini skirt, etc.",
+  "color": "primary color (black, white, blue, light blue, navy, red, green, pink, brown, grey, beige, cream, etc.)"
 }
 
 Return ONLY the JSON, no other text or markdown."""
@@ -74,11 +71,8 @@ Return ONLY the JSON, no other text or markdown."""
             print(f"Vision analysis error: {e}")
             return {
                 "category": "unknown",
-                "subcategory": "unknown", 
-                "color": "unknown",
-                "fabric": "unknown",
-                "pattern": "unknown",
-                "style_tags": []
+                "description": "unknown", 
+                "color": "unknown"
             }
 
 

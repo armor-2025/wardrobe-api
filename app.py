@@ -433,11 +433,11 @@ def upload_wardrobe_item(
     item = WardrobeItem(
         user_id=user.id,
         image_url=req.image_url,
-        category=tags['category'],
-        color=tags['color'],
-        fabric=tags['fabric'],
-        pattern=tags['pattern'],
-        style_tags=json.dumps(tags['style_tags']),
+        category=tags.get('category', 'unknown'),
+        color=tags.get('color', 'unknown'),
+        fabric=tags.get('description', 'unknown'),
+        pattern='',
+        style_tags='[]',
         user_edited=False
     )
     db.add(item)
@@ -562,11 +562,11 @@ async def upload_wardrobe_file(
     item = WardrobeItem(
         user_id=user.id,
         image_url=image_url,
-        category=tags['category'],
-        color=tags['color'],
-        fabric=tags['fabric'],
-        pattern=tags['pattern'],
-        style_tags=json.dumps(tags['style_tags']),
+        category=tags.get('category', 'unknown'),
+        color=tags.get('color', 'unknown'),
+        fabric=tags.get('description', 'unknown'),
+        pattern='',
+        style_tags='[]',
         user_edited=False
     )
     db.add(item)
