@@ -13,9 +13,6 @@ requests
 meilisearch
 python-dotenv
 numpy
-torch
-faiss-cpu
-open-clip-torch
 openai
 PyJWT
 beautifulsoup4
