@@ -11,3 +11,8 @@ rembg
 google-generativeai
 requests
 meilisearch
+python-dotenv
+numpy
+torch
+faiss-cpu
+open-clip-torch

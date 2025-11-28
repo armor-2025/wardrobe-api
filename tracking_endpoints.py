@@ -1,0 +1,293 @@
+# tracking_endpoints.py
+# Add these endpoints to your app.py
+
+from fastapi import APIRouter, Depends, HTTPException, Header
+from sqlalchemy.orm import Session
+from datetime import datetime
+from typing import Optional, Dict, Any
+from pydantic import BaseModel
+import json
+
+from database import get_db
+from auth_service import get_current_user
+from interaction_models import UserInteraction, ACTION_WEIGHTS, UserStyleProfile, ProductAnalytics
+
+router = APIRouter(prefix="/ai", tags=["AI Tracking"])
+
+
+# ============================================
+# INTERACTION TRACKING
+# ============================================
+
+
+class TrackInteractionRequest(BaseModel):
+    action_type: str
+    item_id: Optional[str] = None
+    item_type: Optional[str] = None  
+    metadata: Optional[Dict[str, Any]] = None
+    source: Optional[str] = None
+
+@router.post("/track-interaction")
+def track_interaction(
+    request: TrackInteractionRequest,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Track ANY user action for AI personalization.
+    
+    Examples:
+    - User favorites a product: action_type='favorite_product', item_id='prod_123'
+    - User searches: action_type='search', metadata={'query': 'black dress'}
+    - User views creator post: action_type='view_post', item_id='post_456'
+    - User adds to canvas: action_type='canvas_add', item_id='prod_123'
+    """
+    print(f"DEBUG: authorization header = {authorization}")
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    print(f"DEBUG tracking: token={token[:20]}...")
+    user = get_current_user(db, token)
+    print(f"DEBUG tracking: user={user}")
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # Get weight for this action type
+    weight = ACTION_WEIGHTS.get(request.action_type, 1.0)
+    
+    # Create interaction record
+    interaction = UserInteraction(
+        user_id=user.id,
+        action_type=request.action_type,
+        item_id=request.item_id,
+        item_type=request.item_type,
+        interaction_metadata=request.metadata or {},
+        weight=weight,
+        source=request.source
+    )
+    
+    db.add(interaction)
+    
+    # Update product analytics if this is a product interaction
+    if request.item_type == 'product' and request.item_id:
+        update_product_analytics(db, request.item_id, request.action_type)
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "interaction_id": interaction.id,
+        "weight": weight,
+        "message": f"Tracked {request.action_type} action"
+    }
+
+
+@router.get("/interactions/me")
+def get_my_interactions(
+    limit: int = 50,
+    action_type: Optional[str] = None,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Get user's recent interactions.
+    Useful for debugging or showing user their activity history.
+    """
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    query = db.query(UserInteraction).filter(UserInteraction.user_id == user.id)
+    
+    if action_type:
+        query = query.filter(UserInteraction.action_type == action_type)
+    
+    interactions = query.order_by(UserInteraction.created_at.desc()).limit(limit).all()
+    
+    return {
+        "interactions": [
+            {
+                "id": i.id,
+                "action_type": i.action_type,
+                "item_id": i.item_id,
+                "item_type": i.item_type,
+                "metadata": i.interaction_metadata,
+                "source": i.source,
+                "weight": i.weight,
+                "created_at": i.created_at.isoformat()
+            }
+            for i in interactions
+        ],
+        "total": len(interactions)
+    }
+
+
+# ============================================
+# USER STYLE PROFILE
+# ============================================
+
+@router.get("/profile/me")
+def get_my_style_profile(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Get user's AI-generated style profile.
+    This is built from all their interactions.
+    """
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    profile = db.query(UserStyleProfile).filter(UserStyleProfile.user_id == user.id).first()
+    
+    if not profile:
+        # Create initial profile
+        profile = UserStyleProfile(user_id=user.id)
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+    
+    return {
+        "user_id": user.id,
+        "profile": {
+            "favorite_colors": profile.favorite_colors,
+            "favorite_brands": profile.favorite_brands,
+            "favorite_categories": profile.favorite_categories,
+            "style_keywords": profile.style_keywords,
+            "size_preferences": profile.size_preferences,
+            "budget_range": {
+                "min": profile.budget_min,
+                "max": profile.budget_max,
+                "avg": profile.avg_price_point
+            },
+            "shopping_frequency": profile.shopping_frequency,
+            "engagement_score": profile.engagement_score,
+            "followed_creator_styles": profile.followed_creator_styles
+        },
+        "last_updated": profile.updated_at.isoformat() if profile.updated_at else None
+    }
+
+
+@router.post("/profile/rebuild")
+def rebuild_my_profile(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Manually trigger profile rebuild from interactions.
+    Normally this runs nightly via background job.
+    """
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # Rebuild profile from interactions
+    from profile_builder import rebuild_user_profile
+    profile = rebuild_user_profile(db, user.id)
+    
+    return {
+        "success": True,
+        "message": "Profile rebuilt successfully",
+        "profile": profile
+    }
+
+
+# ============================================
+# HELPER FUNCTIONS
+# ============================================
+
+def update_product_analytics(db: Session, product_id: str, action_type: str):
+    """
+    Update product analytics in real-time.
+    This data is GOLD for retailers!
+    """
+    analytics = db.query(ProductAnalytics).filter(
+        ProductAnalytics.product_id == product_id
+    ).first()
+    
+    if not analytics:
+        analytics = ProductAnalytics(product_id=product_id)
+        db.add(analytics)
+    
+    # Increment counters based on action type
+    if action_type == 'view_product':
+        analytics.view_count = (analytics.view_count or 0) + 1
+    elif action_type in ['favorite_product', 'favorite_from_creator']:
+        analytics.favorite_count = (analytics.favorite_count or 0) + 1
+    elif action_type == 'canvas_add':
+        analytics.canvas_add_count = (analytics.canvas_add_count or 0) + 1
+    elif action_type == 'click_to_retailer':
+        analytics.click_through_count = (analytics.click_through_count or 0) + 1
+    
+    # Calculate conversion rate
+    if (analytics.favorite_count or 0) > 0:
+        analytics.wishlist_to_canvas_rate = analytics.canvas_add_count / analytics.favorite_count
+    
+    db.commit()
+
+
+
+# ============================================
+# ANALYTICS ENDPOINTS (For Retailers!)
+# ============================================
+
+@router.get("/analytics/product/{product_id}")
+def get_product_analytics(
+    product_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get analytics for a specific product.
+    This is what you'll sell to retailers!
+    """
+    analytics = db.query(ProductAnalytics).filter(
+        ProductAnalytics.product_id == product_id
+    ).first()
+    
+    if not analytics:
+        raise HTTPException(status_code=404, detail="No analytics found for this product")
+    
+    return {
+        "product_id": product_id,
+        "metrics": {
+            "views": analytics.view_count,
+            "favorites": analytics.favorite_count,
+            "canvas_adds": analytics.canvas_add_count,
+            "clicks": analytics.click_through_count,
+            "wishlist_to_canvas_rate": f"{analytics.wishlist_to_canvas_rate * 100:.1f}%",
+            "purchase_intent_score": calculate_purchase_intent(analytics)
+        },
+        "demographics": analytics.interested_demographics,
+        "updated_at": analytics.updated_at.isoformat()
+    }
+
+
+def calculate_purchase_intent(analytics: ProductAnalytics) -> float:
+    """
+    Calculate 0-100 score indicating how likely users will buy this product.
+    High canvas_add_count + high click_through = strong intent!
+    """
+    if analytics.view_count == 0:
+        return 0.0
+    
+    # Weighted formula
+    view_to_favorite = (analytics.favorite_count / analytics.view_count) * 30
+    favorite_to_canvas = analytics.wishlist_to_canvas_rate * 40
+    click_rate = (analytics.click_through_count / max(analytics.favorite_count, 1)) * 30
+    
+    score = min(view_to_favorite + favorite_to_canvas + click_rate, 100)
+    return round(score, 2)

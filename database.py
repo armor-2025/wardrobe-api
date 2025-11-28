@@ -1,0 +1,123 @@
+from sqlalchemy.orm import relationship
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+from datetime import datetime
+
+Base = declarative_base()
+
+class User(Base):
+    __tablename__ = 'users'
+
+
+    
+    id = Column(Integer, primary_key=True)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    wardrobe_items = relationship("WardrobeItem", back_populates="user")
+    favorites = relationship("Favorite", back_populates="user")
+    outfits = relationship("Outfit", back_populates="user")
+    size_preference = relationship("SizePreference", uselist=False, backref="user")
+
+class WardrobeItem(Base):
+    __tablename__ = 'wardrobe_items'
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    image_url = Column(String, nullable=False)
+    category = Column(String)  # AI detected
+    color = Column(String)  # AI detected
+    fabric = Column(String)  # AI detected
+    pattern = Column(String)  # AI detected
+    style_tags = Column(Text)  # JSON array
+    user_edited = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    brand = Column(String, nullable=True)
+    size = Column(String, nullable=True)
+    price = Column(Float, nullable=True)
+    date_purchased = Column(DateTime, nullable=True)
+    season = Column(String, nullable=True)  # "spring", "summer", etc.
+    state = Column(String, nullable=True)  # "new", "good", "worn" 
+    
+    user = relationship("User", back_populates="wardrobe_items")
+
+class Favorite(Base):
+    __tablename__ = 'favorites'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    product_id = Column(String)  # External product ID
+    title = Column(String)
+    image_url = Column(String)  # Original product image for wishlist cards
+    canvas_image_url = Column(String, nullable=True)  # Clean PNG for canvas (lazy-loaded)
+    canvas_processing_status = Column(String, nullable=True)  # "pending", "processing", "complete", "failed"
+    brand = Column(String)
+    retailer = Column(String)
+    price = Column(Float)
+    original_price = Column(Float)
+    price_history = Column(Text)
+    price_alert_threshold = Column(Float)
+    notify_on_price_drop = Column(Boolean, default=True)
+    product_url = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_price_check = Column(DateTime)
+
+    stock_status = Column(String)  # "in_stock", "low_stock", "out_of_stock", "unknown"
+    stock_level = Column(Integer)  # Exact count if available (e.g., "3 left")
+    last_stock_check = Column(DateTime)
+    notify_on_low_stock = Column(Boolean, default=True)
+    notify_on_back_in_stock = Column(Boolean, default=True)
+
+    user = relationship("User", back_populates="favorites")
+
+class Outfit(Base):
+    __tablename__ = 'outfits'
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    name = Column(String, nullable=False)
+    outfit_data = Column(Text)  # JSON: positions + item IDs
+    thumbnail_url = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User", back_populates="outfits")
+
+# Database setup
+DATABASE_URL = "sqlite:///./wardrobe.db"
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": 
+False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, 
+bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+class SizePreference(Base):
+    __tablename__ = 'size_preferences'
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), unique=True)
+    enabled = Column(Boolean, default=True)  # Toggle on/off
+    gender_preference = Column(String)  # "women", "men", "both"
+    tops = Column(Text)  # JSON array: ["S", "M"]
+    bottoms = Column(Text)  # JSON array: ["28", "30"]
+    shoes = Column(Text)  # JSON array: ["8", "9"]
+    dresses = Column(Text)  # JSON array: ["8", "10"]
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+
+def init_db():
+    Base.metadata.create_all(bind=engine)
+
+# Import interaction models to create tables
+from interaction_models import UserInteraction, UserStyleProfile, ProductAnalytics
+
+# Import canvas models
+from canvas_models import Canvas, CanvasLike, OutfitSuggestion, CanvasTemplate
