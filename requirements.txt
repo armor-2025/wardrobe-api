@@ -17,3 +17,4 @@ torch
 faiss-cpu
 open-clip-torch
 openai
+PyJWT
