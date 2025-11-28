@@ -166,18 +166,21 @@ VINDEX_PATH = "faiss.index"
 VMETA_PATH  = "faiss_meta.json"
 
 # Load CLIP (image encoder only)
-_v_model, _, _preprocess = open_clip.create_model_and_transforms(
-    "ViT-B-32", pretrained="openai"
-)
-_v_model.eval()
+_v_model = None
+_preprocess = None
 _v_device = "cpu"
-_v_model.to(_v_device)
-
-# Load FAISS index + metadata (created by vision_index.py)
+#_v_model, _, _preprocess = open_clip.create_model_and_transforms(
+#    "ViT-B-32", pretrained="openai"
+#)
+#_v_model.eval()
+#_v_device = "cpu"
+#_v_model.to(_v_device)
+#
+## Load FAISS index + metadata (created by vision_index.py)
 _v_index = None
 _v_meta  = []
 if os.path.exists(VINDEX_PATH) and os.path.exists(VMETA_PATH):
-    _v_index = faiss.read_index(VINDEX_PATH)
+#    _v_index = faiss.read_index(VINDEX_PATH)
     with open(VMETA_PATH, "r") as f:
         _v_meta = json.load(f)
 
