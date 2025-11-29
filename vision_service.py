@@ -1,6 +1,6 @@
 """
 Vision Service - Clothing Analysis using Gemini 2.0 Flash (REST API)
-Cost: ~$0.002 per analysis
+Cost: ~$0.002 per analysis (ONE call per upload)
 """
 import os
 import json
@@ -71,95 +71,72 @@ class VisionService:
         
         return result_text
     
-    def detect_image_type(self, image_source: str) -> Dict[str, Any]:
+    def analyze_upload(self, image_source: str) -> Dict[str, Any]:
         """
-        Detect if image contains a single clothing item or a full outfit
-        Returns: {type: "single_item"|"outfit", items: [...]}
+        MAIN METHOD - Analyze uploaded image in ONE Gemini call
+        Detects single item vs outfit AND extracts all item details
+        
+        Returns: {
+            "type": "single_item" | "outfit",
+            "items": [
+                {
+                    "description": "blue denim jacket",  # For SAM prompt
+                    "category": "outerwear",
+                    "color": "blue"
+                },
+                ...
+            ]
+        }
         """
         try:
             image_data, mime_type = self._image_to_base64(image_source)
             
             prompt = """Analyze this image and determine if it shows:
-1. A SINGLE clothing item (just one piece of clothing, flat lay or on hanger)
-2. A FULL OUTFIT (multiple clothing items, person wearing clothes, or styled outfit)
+1. A SINGLE clothing item (just one piece of clothing, flat lay, on hanger, or person wearing one main item)
+2. A FULL OUTFIT (multiple distinct clothing items visible, person wearing complete outfit)
 
 Return ONLY a JSON object:
 {
   "type": "single_item" or "outfit",
   "items": [
     {
-      "description": "specific item description for SAM segmentation (e.g., 'blue denim jacket', 'white longsleeve top', 'black skinny jeans')",
-      "category": "tops|bottoms|outerwear|footwear|accessories|dresses"
+      "description": "specific description for segmentation (e.g., 'blue denim jacket', 'white longsleeve top', 'black skinny jeans')",
+      "category": "tops|bottoms|outerwear|footwear|accessories|dresses",
+      "color": "primary color (black, white, blue, navy, red, green, pink, brown, grey, beige, cream, etc.)"
     }
   ]
 }
 
-For single_item: items array has 1 item
-For outfit: items array has all visible clothing items (2-6 typically)
+RULES:
+- For single_item: items array has exactly 1 item
+- For outfit: items array has all visible clothing items (typically 2-5 items)
+- Description must be specific with color + style for accurate AI segmentation
+- Category MUST be one of: tops, bottoms, outerwear, footwear, accessories, dresses
+- Don't include bags, jewelry, or small accessories unless prominently featured
 
-Be specific in descriptions - include color and style for accurate segmentation.
-Return ONLY the JSON, no other text."""
+Return ONLY valid JSON, no other text."""
 
             result_text = self._call_gemini(prompt, image_data, mime_type)
             return json.loads(result_text)
             
         except Exception as e:
-            print(f"Image type detection error: {e}")
+            print(f"Upload analysis error: {e}")
             return {"type": "single_item", "items": []}
     
     def analyze_clothing(self, image_source: str) -> Dict[str, Any]:
         """
-        Analyze a clothing item image and extract tags
+        Legacy method - Analyze a single clothing item
         Returns: {category, description, color}
         """
-        try:
-            image_data, mime_type = self._image_to_base64(image_source)
-            
-            prompt = """Analyze this clothing item and return ONLY a JSON object with these fields:
-{
-  "category": "tops|bottoms|outerwear|footwear|accessories|dresses (REQUIRED - must be one of these)",
-  "description": "specific item type like: wide leg pants, skinny jeans, denim jacket, longsleeve top, mini skirt, etc.",
-  "color": "primary color (black, white, blue, light blue, navy, red, green, pink, brown, grey, beige, cream, etc.)"
-}
-
-Return ONLY the JSON, no other text or markdown."""
-
-            result_text = self._call_gemini(prompt, image_data, mime_type)
-            return json.loads(result_text)
-            
-        except Exception as e:
-            print(f"Vision analysis error: {e}")
+        result = self.analyze_upload(image_source)
+        if result["items"]:
+            item = result["items"][0]
             return {
-                "category": "unknown",
-                "description": "unknown", 
-                "color": "unknown"
+                "category": item.get("category", "unknown"),
+                "description": item.get("description", "unknown"),
+                "color": item.get("color", "unknown")
             }
-    
-    def analyze_clothing_from_bytes(self, image_bytes: bytes) -> Dict[str, Any]:
-        """Analyze clothing from raw bytes (for segmented items)"""
-        try:
-            image_data = base64.b64encode(image_bytes).decode('utf-8')
-            mime_type = "image/png"
-            
-            prompt = """Analyze this clothing item and return ONLY a JSON object with these fields:
-{
-  "category": "tops|bottoms|outerwear|footwear|accessories|dresses (REQUIRED - must be one of these)",
-  "description": "specific item type like: wide leg pants, skinny jeans, denim jacket, longsleeve top, mini skirt, etc.",
-  "color": "primary color (black, white, blue, light blue, navy, red, green, pink, brown, grey, beige, cream, etc.)"
-}
-
-Return ONLY the JSON, no other text or markdown."""
-
-            result_text = self._call_gemini(prompt, image_data, mime_type)
-            return json.loads(result_text)
-            
-        except Exception as e:
-            print(f"Vision analysis error: {e}")
-            return {
-                "category": "unknown",
-                "description": "unknown", 
-                "color": "unknown"
-            }
+        return {"category": "unknown", "description": "unknown", "color": "unknown"}
 
 
 # Singleton instance
