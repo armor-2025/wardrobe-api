@@ -1437,3 +1437,355 @@ async def serve_wardrobe_image(filename: str):
             "Access-Control-Allow-Headers": "*",
         }
     )
+
+
+# ============ OUTFIT QUEUE SYSTEM ============
+from outfit_queue import create_queue, get_queue, delete_queue, QueuedItem, UploadQueue
+from sam3_service import get_sam3_service
+
+@app.post("/wardrobe/upload-smart")
+async def upload_wardrobe_smart(
+    file: UploadFile = File(...),
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Smart upload - handles both single items and full outfits
+    Returns first item + queue info if outfit detected
+    """
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    # Read file bytes
+    file_bytes = await file.read()
+    
+    # Save original temporarily for Gemini analysis
+    upload_dir = Path("uploads/wardrobe")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    temp_filename = f"temp_analyze_{uuid.uuid4()}.png"
+    temp_path = upload_dir / temp_filename
+    
+    with open(temp_path, "wb") as f:
+        f.write(file_bytes)
+    
+    # Analyze with Gemini (ONE call - detects type + all items)
+    vision = get_vision_service()
+    analysis = vision.analyze_upload(str(temp_path))
+    
+    print(f"Gemini analysis: {analysis}")
+    
+    image_type = analysis.get("type", "single_item")
+    items = analysis.get("items", [])
+    
+    if not items:
+        temp_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Could not detect clothing items")
+    
+    # SINGLE ITEM - process normally
+    if image_type == "single_item" or len(items) == 1:
+        temp_path.unlink(missing_ok=True)
+        
+        # Remove background
+        processed_bytes = await process_single_item(file_bytes)
+        
+        # Save to file
+        unique_filename = f"{uuid.uuid4()}.png"
+        final_path = upload_dir / unique_filename
+        with open(final_path, "wb") as f:
+            f.write(processed_bytes)
+        
+        image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
+        item_info = items[0]
+        
+        return {
+            "type": "single_item",
+            "queue_id": None,
+            "total_items": 1,
+            "current_index": 0,
+            "item": {
+                "image_url": image_url,
+                "category": item_info.get("category", "unknown"),
+                "description": item_info.get("description", "unknown"),
+                "color": item_info.get("color", "unknown")
+            }
+        }
+    
+    # OUTFIT - segment with SAM 3 and create queue
+    print(f"Outfit detected with {len(items)} items, segmenting with SAM 3...")
+    
+    sam3 = get_sam3_service()
+    queued_items = []
+    
+    for item_info in items:
+        description = item_info.get("description", "clothing item")
+        
+        # Call SAM 3 to segment this item
+        seg_result = await sam3.segment_item(file_bytes, description)
+        
+        if seg_result["success"]:
+            # Extract the segmented image
+            extracted_bytes = await extract_mask_from_result(file_bytes, seg_result["result"])
+            
+            if extracted_bytes:
+                queued_items.append(QueuedItem(
+                    image_bytes=extracted_bytes,
+                    description=description,
+                    category=item_info.get("category", "unknown"),
+                    color=item_info.get("color", "unknown")
+                ))
+                print(f"  ✓ Segmented: {description}")
+            else:
+                print(f"  ✗ Failed to extract: {description}")
+        else:
+            print(f"  ✗ SAM 3 failed for: {description}")
+    
+    temp_path.unlink(missing_ok=True)
+    
+    if not queued_items:
+        raise HTTPException(status_code=400, detail="Could not segment any items from outfit")
+    
+    # Create queue
+    queue = create_queue(user.id, queued_items)
+    
+    # Save first item to file and return it
+    first_item = queue.get_current()
+    unique_filename = f"{uuid.uuid4()}.png"
+    final_path = upload_dir / unique_filename
+    with open(final_path, "wb") as f:
+        f.write(first_item.image_bytes)
+    
+    image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
+    
+    return {
+        "type": "outfit",
+        "queue_id": queue.queue_id,
+        "total_items": queue.total_items,
+        "current_index": 0,
+        "item": {
+            "image_url": image_url,
+            "category": first_item.category,
+            "description": first_item.description,
+            "color": first_item.color
+        }
+    }
+
+
+@app.post("/wardrobe/save-and-next")
+async def save_and_next_item(
+    queue_id: str,
+    category: str,
+    description: str,
+    color: str,
+    image_url: str,
+    brand: str = None,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Save current item to wardrobe and get next item from queue"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # Save item to database
+    item = WardrobeItem(
+        user_id=user.id,
+        image_url=image_url,
+        category=category,
+        color=color,
+        fabric=description,  # Using fabric field for description
+        pattern='',
+        style_tags='[]',
+        brand=brand or '',
+        user_edited=True
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    
+    # Get queue and advance
+    queue = get_queue(queue_id, user.id)
+    
+    if not queue:
+        return {
+            "saved_item_id": item.id,
+            "has_next": False,
+            "next_item": None
+        }
+    
+    # Advance to next item
+    next_queued = queue.advance()
+    
+    if not next_queued:
+        delete_queue(queue_id)
+        return {
+            "saved_item_id": item.id,
+            "has_next": False,
+            "next_item": None
+        }
+    
+    # Save next item to file
+    upload_dir = Path("uploads/wardrobe")
+    unique_filename = f"{uuid.uuid4()}.png"
+    final_path = upload_dir / unique_filename
+    with open(final_path, "wb") as f:
+        f.write(next_queued.image_bytes)
+    
+    next_image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
+    
+    return {
+        "saved_item_id": item.id,
+        "has_next": True,
+        "queue_id": queue_id,
+        "total_items": queue.total_items,
+        "current_index": queue.current_index,
+        "next_item": {
+            "image_url": next_image_url,
+            "category": next_queued.category,
+            "description": next_queued.description,
+            "color": next_queued.color
+        }
+    }
+
+
+@app.post("/wardrobe/skip-item")
+async def skip_item(
+    queue_id: str,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Skip current item without saving and get next item"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    queue = get_queue(queue_id, user.id)
+    
+    if not queue:
+        return {"has_next": False, "next_item": None}
+    
+    # Advance to next item
+    next_queued = queue.advance()
+    
+    if not next_queued:
+        delete_queue(queue_id)
+        return {"has_next": False, "next_item": None}
+    
+    # Save next item to file
+    upload_dir = Path("uploads/wardrobe")
+    unique_filename = f"{uuid.uuid4()}.png"
+    final_path = upload_dir / unique_filename
+    with open(final_path, "wb") as f:
+        f.write(next_queued.image_bytes)
+    
+    next_image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
+    
+    return {
+        "has_next": True,
+        "queue_id": queue_id,
+        "total_items": queue.total_items,
+        "current_index": queue.current_index,
+        "next_item": {
+            "image_url": next_image_url,
+            "category": next_queued.category,
+            "description": next_queued.description,
+            "color": next_queued.color
+        }
+    }
+
+
+# Helper functions
+async def process_single_item(file_bytes: bytes) -> bytes:
+    """Remove background from single item"""
+    try:
+        from rembg import remove, new_session
+        from PIL import Image
+        from io import BytesIO
+        
+        input_image = Image.open(BytesIO(file_bytes))
+        session = new_session(model_name='isnet-general-use')
+        
+        output_image = remove(
+            input_image,
+            session=session,
+            alpha_matting=True,
+            alpha_matting_foreground_threshold=270,
+            alpha_matting_background_threshold=20,
+            alpha_matting_erode_size=15
+        )
+        
+        if output_image.mode != 'RGBA':
+            output_image = output_image.convert('RGBA')
+        
+        # Crop to content
+        bbox = output_image.getbbox()
+        if bbox:
+            output_image = output_image.crop(bbox)
+        
+        output_buffer = BytesIO()
+        output_image.save(output_buffer, format='PNG', optimize=True)
+        return output_buffer.getvalue()
+        
+    except Exception as e:
+        print(f"Background removal failed: {e}")
+        return file_bytes
+
+
+async def extract_mask_from_result(original_bytes: bytes, sam_result: dict) -> bytes:
+    """Extract segmented item from SAM 3 result"""
+    from PIL import Image, ImageDraw
+    from io import BytesIO
+    import numpy as np
+    
+    try:
+        img = Image.open(BytesIO(original_bytes)).convert("RGBA")
+        width, height = img.size
+        
+        # Parse SAM 3 response
+        if "prompt_results" in sam_result and len(sam_result["prompt_results"]) > 0:
+            prompt_result = sam_result["prompt_results"][0]
+            
+            if "predictions" in prompt_result and len(prompt_result["predictions"]) > 0:
+                prediction = prompt_result["predictions"][0]
+                
+                # Handle polygon points
+                if "points" in prediction:
+                    points = prediction["points"]
+                    
+                    mask = Image.new("L", (width, height), 0)
+                    draw = ImageDraw.Draw(mask)
+                    
+                    poly_points = [(p["x"], p["y"]) for p in points]
+                    draw.polygon(poly_points, fill=255)
+                    
+                    result = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+                    result.paste(img, mask=mask)
+                    
+                    bbox = result.getbbox()
+                    if bbox:
+                        result = result.crop(bbox)
+                    
+                    output = BytesIO()
+                    result.save(output, format="PNG")
+                    return output.getvalue()
+        
+        return None
+        
+    except Exception as e:
+        print(f"Mask extraction error: {e}")
+        return None
