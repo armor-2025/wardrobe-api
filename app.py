@@ -559,7 +559,7 @@ async def upload_wardrobe_file(
     
     # Create public URL (OUTSIDE the try/except)
     local_url = f"http://127.0.0.1:8012/uploads/wardrobe/{unique_filename}"
-    image_url = f"https://platycephalic-unnumerously-jazmine.ngrok-free.dev/images/wardrobe/{unique_filename}?ngrok-skip-browser-warning=true"
+    image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
     
     # AI analyze the image
     vision = get_vision_service()
