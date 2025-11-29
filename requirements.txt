@@ -16,3 +16,4 @@ numpy
 openai
 PyJWT
 beautifulsoup4
+onnxruntime
