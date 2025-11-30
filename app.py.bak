@@ -1,0 +1,17 @@
+
+import os, re
+from typing import Any, Dict, List, Optional
+
+import orjson, requests
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+
+MEILI_HOST = os.getenv('MEILI_HOST', 'http://127.0.0.1:7700')
+MEILI_KEY = os.getenv('MEILI_KEY', 'master_key')
+INDEX_NAME = os.getenv('INDEX_NAME', 'products')
+
+HEADERS = {'Authorization': f'Bearer {MEILI_KEY}', 'Content-Type': 'application/json'}

@@ -1,0 +1,66 @@
+✅
+echo 
+echo New philosophy:
+echo - Show alternatives that match THEIR style
+echo - Prioritize brands they LOVE
+echo - Give them MORE OPTIONS, not just cheaper options
+echo - Like LTK: variety and personalization alone
+curl -X GET http://localhost:8012/creators/posts/1/alternatives   -H Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0LCJlbWFpbCI6ImZhbkBleGFtcGxlLmNvbSIsImV4cCI6MTc2MjYwMjcwMH0.pWemHbMAGTe3o5uI6G8aJIfiR3M9_6gL6-8s8NMWPWY | python3 -m json.tool
+cd ~/wardrobe/backend/api
+
+python3 << 'ENDOFFILE'
+with open('tailored_recommendations.py', 'r') as f:
+    content = f.read()
+
+# Add CLIP similarity calculation placeholder with detailed comments
+old_visual = '''        # 4. VISUAL SIMILARITY (15% weight) - PLACEHOLDER
+        # In production, use CLIP embeddings
+        # Looks similar = feels right
+        # For now, give partial credit
+        scores['visual'] = 0.08'''
+
+new_visual = '''        # 4. VISUAL SIMILARITY (15% weight) - CLIP EMBEDDINGS
+        # This is WHERE THE MAGIC HAPPENS
+        # CLIP understands visual concepts that tags miss:
+        # - Paint splatters, distressing, texture
+        # - Exact shade of color (not just blue but faded denim blue)
+        # - Fit and silhouette (baggy vs fitted)
+        # - Details: buttons, zippers, pockets, patterns
+        # - Styling: tucked, rolled, layered
+        # - Material appearance: leather texture, knit pattern, denim wash
+        
+        # TODO: Implement CLIP similarity
+        # visual_sim = cosine_similarity(
+        #     creator_product_embedding,
+        #     candidate_product_embedding
+        # )
+        # scores['visual'] = visual_sim * 0.15
+        
+        # For now, give partial credit (will be replaced with real CLIP)
+        scores['visual'] = 0.08
+        
+        # FUTURE: This score should be HIGHEST for items that:
+        # - Have the exact same vibe (minimalist, edgy, preppy)
+        # - Share subtle details (paint splats, distressing)
+        # - Match the exact aesthetic even if tags differ'''
+
+content = content.replace(old_visual, new_visual)
+
+# Update the header to emphasize visual similarity
+old_header = '''Finds personalized product alternatives for creator's picks based on:
+1. User's style preferences (MOST IMPORTANT)
+2. User's favorite brands
+3. User's budget (secondary consideration)
+4. Visual similarity
+5. Size availability
+6. Past purchase patterns'''
+
+new_header = '''Finds personalized product alternatives for creator's picks based on:
+1. VISUAL SIMILARITY (CLIP embeddings) - The item LOOKS the same
+2. User's style preferences (minimalist, boho, streetwear)
+3. User's favorite brands
+4. User's color preferences
+5. User's typical price range (bonus, not requirement)
+6. Past purchase patterns
+
+KEY INSIGHT: Tags say white jeans but CLIP sees distressed wide-leg

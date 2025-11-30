@@ -1,0 +1,93 @@
+import os, json, io, requests
+from PIL import Image
+import numpy as np
+import torch
+import faiss
+import open_clip
+from meilisearch import Client
+
+MEILI_HOST = os.getenv("MEILI_HOST", "http://127.0.0.1:7700")
+MEILI_KEY  = os.getenv("MEILI_KEY",  "master_key")
+INDEX_UID  = "products"
+
+INDEX_PATH = "faiss.index"
+META_PATH  = "faiss_meta.json"
+
+    cli = Client(MEILI_HOST, MEILI_KEY)
+    # This client version expects a dict as the first (positional) arg, 
+NOT keyword args.
+    res = cli.index(INDEX_UID).get_documents({"limit": limit})
+
+    # Some client versions return {"results": [...]}; others return a 
+list directly.
+    docs = res["results"] if isinstance(res, dict) and "results" in res 
+else res
+
+    # Keep only docs that have at least one image URL
+    return [d for d in docs if isinstance(d.get("images"), list) and 
+d["images"]]
+
+def get_products(limit=1000):
+    cli = Client(MEILI_HOST, MEILI_KEY)
+    # This client version expects a dict as the first (positional) arg, 
+NOT keyword args.
+    res = cli.index(INDEX_UID).get_documents({"limit": limit})
+
+    # Some client versions return {"results": [...]}; others return a list 
+directly.
+    docs = res["results"] if isinstance(res, dict) and "results" in res 
+else res
+
+    # Keep only docs that have at least one image URL
+    return [d for d in docs if isinstance(d.get("images"), list) and 
+d["images"]]
+
+def load_img(url, timeout=15):
+    r = requests.get(url, timeout=timeout)
+    r.raise_for_status()
+    return Image.open(io.BytesIO(r.content)).convert("RGB")
+
+def build():
+    print("Loading CLIP model...")
+    model, _, preprocess = open_clip.create_model_and_transforms("ViT-B-32", pretrained="openai")
+    model.eval()
+    device = "cpu"
+    model.to(device)
+
+    print("Fetching products from Meilisearch...")
+    docs = get_products(limit=1000)
+
+    vectors = []
+    meta = []
+
+    with torch.no_grad():
+        for d in docs:
+            url = d["images"][0]
+            try:
+                img = preprocess(load_img(url)).unsqueeze(0).to(device)
+                emb = model.encode_image(img)
+                emb = emb / emb.norm(dim=-1, keepdim=True)
+                vectors.append(emb.cpu().numpy().astype("float32"))
+                meta.append({"id": d.get("id"), "title": d.get("title", ""), "image": url})
+                print(f"ok: {d.get('id')}")
+            except Exception as e:
+                print(f"skip {d.get('id')}: {e}")
+
+    if not vectors:
+        raise RuntimeError("No vectors produced - check your images.")
+
+    X = np.concatenate(vectors, axis=0)
+    print(f"Building FAISS index with {X.shape[0]} vectors of dim {X.shape[1]}...")
+
+    faiss.normalize_L2(X)
+    index = faiss.IndexFlatIP(X.shape[1])
+    index.add(X)
+
+    faiss.write_index(index, INDEX_PATH)
+    with open(META_PATH, "w") as f:
+        json.dump(meta, f)
+
+    print(f"Saved {INDEX_PATH} and {META_PATH}")
+
+if __name__ == "__main__":
+    build()

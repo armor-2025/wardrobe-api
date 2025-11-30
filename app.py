@@ -1525,10 +1525,11 @@ async def upload_wardrobe_smart(
     queued_items = []
     
     for item_info in items:
-        description = item_info.get("description", "clothing item")
+        label = item_info.get("label", "clothing")
+        description = item_info.get("description", "unknown item")
         
         # Call SAM 3 to segment this item
-        seg_result = await sam3.segment_item(file_bytes, description)
+        seg_result = await sam3.segment_item(file_bytes, label)
         
         if seg_result["success"]:
             # Extract the segmented image

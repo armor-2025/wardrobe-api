@@ -1,0 +1,283 @@
+from dotenv import load_dotenv
+load_dotenv()
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional, List
+import os
+from meilisearch import Client
+import os, io, json
+import numpy as np
+import requests
+from PIL import Image
+import torch
+import faiss
+import open_clip
+
+from fastapi import HTTPException  # add this with your other FastAPI imports
+from asos_service import get_asos_service
+from conversational_search import get_conversational_service
+
+app = FastAPI()
+
+# CORS for the Flutter web app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+MEILI_HOST = os.getenv("MEILI_HOST", "http://127.0.0.1:7700")
+MEILI_KEY  = os.getenv("MEILI_KEY",  "master_key")
+client     = Client(MEILI_HOST, MEILI_KEY)
+# ---- Visual search: CLIP + FAISS ----
+VINDEX_PATH = "faiss.index"
+VMETA_PATH  = "faiss_meta.json"
+
+# Load CLIP (image encoder only)
+_v_model, _, _preprocess = open_clip.create_model_and_transforms(
+    "ViT-B-32", pretrained="openai"
+)
+_v_model.eval()
+_v_device = "cpu"
+_v_model.to(_v_device)
+
+# Load FAISS index + metadata (created by vision_index.py)
+_v_index = None
+_v_meta  = []
+if os.path.exists(VINDEX_PATH) and os.path.exists(VMETA_PATH):
+    _v_index = faiss.read_index(VINDEX_PATH)
+    with open(VMETA_PATH, "r") as f:
+        _v_meta = json.load(f)
+
+def _load_image_from_url(url, timeout=15):
+    r = requests.get(url, timeout=timeout)
+    r.raise_for_status()
+    return Image.open(io.BytesIO(r.content)).convert("RGB")
+
+def _encode_image_from_url(url: str) -> np.ndarray:
+    img = _preprocess(_load_image_from_url(url)).unsqueeze(0).to(_v_device)
+    with torch.no_grad():
+        emb = _v_model.encode_image(img)
+        emb = emb / emb.norm(dim=-1, keepdim=True)
+    return emb.cpu().numpy().astype("float32")
+
+@app.get("/ping")
+async def ping():
+    return {"ok": True}
+
+
+
+@app.get("/vsearch")
+def visual_search(image: str, k: int = 10):
+    """
+    Visual similarity search.
+    GET /vsearch?image=<image_url>&k=10
+    """
+    if _v_index is None or not _v_meta:
+        raise HTTPException(status_code=503, detail="Visual index not loaded (run vision_index.py first).")
+
+    try:
+        q = _encode_image_from_url(image)  # shape (1, 512)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not load/encode image: {e}")
+
+    # Nearest neighbors (cosine on L2-normalized vectors ≈ inner product)
+    D, I = _v_index.search(q, min(k, len(_v_meta)))
+
+    hits = []
+    for rank, (idx, score) in enumerate(zip(I[0].tolist(), D[0].tolist()), start=1):
+        if idx < 0 or idx >= len(_v_meta):
+            continue
+        m = _v_meta[idx]
+        hits.append({
+            "rank": rank,
+            "score": float(score),
+            "id": m.get("id"),
+            "title": m.get("title"),
+            "image": m.get("image"),
+        })
+    return {"results": hits}
+
+from fastapi import File, UploadFile   # <-- keep this import near your other FastAPI imports
+
+@app.post("/vsearch_upload")
+async def vsearch_upload(file: UploadFile = File(...), k: int = 10):
+    """
+    Visual search by uploaded image file (multipart/form-data).
+    Field name: 'file'
+    """
+    if _v_index is None or not _v_meta:
+        raise HTTPException(
+            status_code=503,
+            detail="Visual index not loaded (run vision_index.py first)."
+        )
+
+    try:
+        # 1) Read uploaded bytes -> PIL image (RGB)
+        content = await file.read()
+        img = Image.open(io.BytesIO(content)).convert("RGB")
+
+        # 2) Encode with CLIP
+        with torch.no_grad():
+            inp = _preprocess(img).unsqueeze(0).to(_v_device)
+            emb = _v_model.encode_image(inp)
+            emb = emb / emb.norm(dim=-1, keepdim=True)
+            q = emb.cpu().numpy().astype("float32")
+
+        # 3) FAISS search
+        D, I = _v_index.search(q, min(k, len(_v_meta)))
+
+        # 4) Build hits
+        hits = []
+        for rank, (idx, score) in enumerate(zip(I[0].tolist(), D[0].tolist()), start=1):
+            if idx < 0 or idx >= len(_v_meta):
+                continue
+            m = _v_meta[idx]
+            hits.append({
+                "rank": rank,
+                "score": float(score),
+                "id": m.get("id"),
+                "title": m.get("title"),
+                "image": m.get("image"),
+            })
+
+        return {"results": hits}
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not process image: {e}")
+
+
+
+@app.get("/search")
+def search(
+    q: str = "",
+    brand: Optional[List[str]] = Query(None),
+    retailer: Optional[List[str]] = Query(None),
+    condition: Optional[str] = Query(None),          # "new" | "preowned"
+    size: Optional[List[str]] = Query(None),
+    category: Optional[List[str]] = Query(None),
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    sort: Optional[str] = Query(None)                # "price:asc" | "price:desc"
+):
+    filters = []
+
+    if brand:
+        filters.append("(" + " OR ".join([f'brand = "{b}"' for b in brand]) + ")")
+    if retailer:
+        filters.append("(" + " OR ".join([f'retailer = "{r}"' for r in retailer]) + ")")
+    if condition in ("new","preowned"):
+        filters.append(f'condition = "{condition}"')
+    if size:
+        filters.append("(" + " OR ".join([f'sizes = \"{s}\"' for s in size]) + ")")
+    if category:
+        filters.append("(" + " OR ".join([f'category_path = \"{c}\"' for c in category]) + ")")
+
+    price_range = []
+    if min_price is not None:
+        price_range.append(f"price >= {min_price}")
+    if max_price is not None:
+        price_range.append(f"price <= {max_price}")
+    if price_range:
+        filters.append(" AND ".join(price_range))
+
+    filter_expr = " AND ".join(filters) if filters else None
+
+    params = {"q": q, "limit": 20}
+    if filter_expr:
+        params["filter"] = filter_expr
+    if sort in ("price:asc","price:desc"):
+        params["sort"] = [sort]
+
+    res = client.index("products").search(q, params)
+    return {"results": res.get("hits", []), "applied_filters": {
+        "q": q, "brand": brand, "retailer": retailer, "condition": condition,
+        "size": size, "category": category, "min_price": min_price, "max_price": max_price, "sort": sort
+    }}
+@app.get("/asos/search")
+def asos_search(
+    q: str = Query(..., description="Search query"),
+    limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    country: str = Query("US"),
+    currency: str = Query("USD"),
+    sort: Optional[str] = Query("freshness"),
+):
+    asos = get_asos_service()
+    data = asos.search_products(query=q, limit=limit, offset=offset, country=country, currency=currency, sort=sort)
+    products = []
+    for item in data.get("products", []):
+        price_data = item.get("price", {}).get("current", {})
+        image_url = item.get("imageUrl", "")
+        
+        # Fix: Add https:// if missing
+        if image_url and not image_url.startswith("http"):
+            image_url = f"https://{image_url}"
+        
+        products.append({
+            "id": str(item.get("id", "")),
+            "title": item.get("name", ""),
+            "image": image_url,  # Now has https://
+            "brand": item.get("brandName", ""),
+            "retailer": "ASOS",
+            "price": price_data.get("value", 0.0),
+        })
+    return {"results": products, "total": data.get("itemCount", 0)}
+
+@app.get("/asos/product/{product_id}")
+def asos_product_detail(product_id: str, country: str = Query("US"), currency: str = Query("USD")):
+    asos = get_asos_service()
+    return asos.get_product_details(product_id=product_id, store=country, currency=currency)
+
+@app.get("/search/conversational")
+def conversational_search(
+    q: str = Query(..., description="Natural language search query"),
+    limit: int = Query(20, ge=1, le=50)
+):
+    conv = get_conversational_service()
+    parsed = conv.parse_query(q)
+    search_params = conv.query_to_search_params(parsed)
+    search_params["limit"] = limit
+    asos = get_asos_service()
+    data = asos.search_products(query=search_params.get("q", ""), limit=limit, country="US", 
+currency="USD")
+    products = []
+    for item in data.get("products", []):
+        price_data = item.get("price", {}).get("current", {})
+        image_url = item.get("imageUrl", "")
+        if image_url and not image_url.startswith("http"):
+            image_url = f"https://{image_url}"
+        products.append({
+            "id": str(item.get("id", "")),
+            "title": item.get("name", ""),
+            "image": image_url,
+            "brand": item.get("brandName", ""),
+            "retailer": "ASOS",
+            "price": price_data.get("value", 0.0),
+        })
+    return {"results": products, "total": data.get("itemCount", 0), "parsed_query": parsed, 
+"model_used": parsed.get("_model_used")}
+
+from fastapi.responses import StreamingResponse
+
+@app.get("/proxy/image")
+async def proxy_image(url: str):
+    """
+    Proxy images to avoid CORS issues
+    GET /proxy/image?url=https://...
+    """
+    try:
+        response = requests.get(url, timeout=10, stream=True)
+        response.raise_for_status()
+        
+        # Get content type from the response
+        content_type = response.headers.get('content-type', 'image/jpeg')
+        
+        return StreamingResponse(
+            response.iter_content(chunk_size=8192),
+            media_type=content_type
+        )
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Could not fetch image: {str(e)}")

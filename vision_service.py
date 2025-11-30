@@ -80,7 +80,8 @@ class VisionService:
             "type": "single_item" | "outfit",
             "items": [
                 {
-                    "description": "blue denim jacket",  # For SAM prompt
+                    "label": "jacket",  # Simple word for SAM segmentation
+                    "description": "oversized denim trucker style",  # Fit/style details (NO color)
                     "category": "outerwear",
                     "color": "blue"
                 },
@@ -100,19 +101,32 @@ Return ONLY a JSON object:
   "type": "single_item" or "outfit",
   "items": [
     {
-      "description": "specific description for segmentation (e.g., 'blue denim jacket', 'white longsleeve top', 'black skinny jeans')",
+      "label": "simple item name for AI segmentation (e.g., 'jacket', 't-shirt', 'jeans', 'sneakers', 'dress')",
+      "description": "fit and style details WITHOUT color (e.g., 'oversized denim trucker', 'graphic print crew neck', 'wide-leg drawstring', 'low-top suede')",
       "category": "tops|bottoms|outerwear|footwear|accessories|dresses",
-      "color": "primary color (black, white, blue, navy, red, green, pink, brown, grey, beige, cream, etc.)"
+      "color": "primary color (black, white, blue, navy, red, green, pink, brown, grey, beige, cream, burgundy, etc.)"
     }
   ]
 }
 
-RULES:
+CRITICAL RULES:
+- "label" must be ONE or TWO simple words only (e.g., "jacket", "t-shirt", "jeans") - this is used for AI segmentation
+- "description" describes FIT and STYLE only - do NOT include color in description
+- "color" is a SEPARATE field - put the color here, not in description or label
 - For single_item: items array has exactly 1 item
 - For outfit: items array has all visible clothing items (typically 2-5 items)
-- Description must be specific with color + style for accurate AI segmentation
 - Category MUST be one of: tops, bottoms, outerwear, footwear, accessories, dresses
 - Don't include bags, jewelry, or small accessories unless prominently featured
+
+EXAMPLES:
+Good: {"label": "jacket", "description": "oversized denim trucker", "color": "blue", "category": "outerwear"}
+Bad: {"label": "blue denim jacket", "description": "blue denim jacket", "color": "blue", "category": "outerwear"}
+
+Good: {"label": "jeans", "description": "slim fit tapered", "color": "black", "category": "bottoms"}
+Bad: {"label": "black jeans", "description": "black slim jeans", "color": "black", "category": "bottoms"}
+
+Good: {"label": "t-shirt", "description": "graphic print oversized crew neck", "color": "white", "category": "tops"}
+Bad: {"label": "white graphic t-shirt", "description": "white t-shirt with print", "color": "white", "category": "tops"}
 
 Return ONLY valid JSON, no other text."""
 
@@ -126,7 +140,7 @@ Return ONLY valid JSON, no other text."""
     def analyze_clothing(self, image_source: str) -> Dict[str, Any]:
         """
         Legacy method - Analyze a single clothing item
-        Returns: {category, description, color}
+        Returns: {category, description, color, label}
         """
         result = self.analyze_upload(image_source)
         if result["items"]:
@@ -134,9 +148,10 @@ Return ONLY valid JSON, no other text."""
             return {
                 "category": item.get("category", "unknown"),
                 "description": item.get("description", "unknown"),
-                "color": item.get("color", "unknown")
+                "color": item.get("color", "unknown"),
+                "label": item.get("label", "clothing")
             }
-        return {"category": "unknown", "description": "unknown", "color": "unknown"}
+        return {"category": "unknown", "description": "unknown", "color": "unknown", "label": "clothing"}
 
 
 # Singleton instance

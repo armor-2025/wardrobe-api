@@ -1,0 +1,52 @@
+{
+  "profile": {
+    "photo_path": "/Users/gavinwalker/Desktop/AI OUTFIT PICS/IMG_6603.JPG",
+    "body_type": "curvy",
+    "body_type_label": "Curvy",
+    "height": "tall",
+    "height_label": "Tall",
+    "display_name": "Tall Curvy",
+    "has_glasses": true,
+    "created_at": "2025-11-05T00:22:03.962819"
+  },
+  "test_date": "2025-11-05T00:23:18.821485",
+  "results": [
+    {
+      "test_name": "jumper_jeans_boots",
+      "success": true,
+      "attempts": 1,
+      "failure_reason": null,
+      "error_message": null,
+      "timestamp": "2025-11-05T00:22:32.768131",
+      "user_message": null
+    },
+    {
+      "test_name": "burgundy_dress_boots",
+      "success": true,
+      "attempts": 1,
+      "failure_reason": null,
+      "error_message": null,
+      "timestamp": "2025-11-05T00:22:49.106138",
+      "user_message": null
+    },
+    {
+      "test_name": "green_dress",
+      "success": true,
+      "attempts": 1,
+      "failure_reason": null,
+      "error_message": null,
+      "timestamp": "2025-11-05T00:23:03.798551",
+      "user_message": null
+    },
+    {
+      "test_name": "bomber_jacket",
+      "success": true,
+      "attempts": 1,
+      "failure_reason": null,
+      "error_message": null,
+      "timestamp": "2025-11-05T00:23:18.769004",
+      "user_message": null
+    }
+  ],
+  "success_rate": "4/4"
+}

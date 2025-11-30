@@ -1,0 +1,42 @@
+{
+  "user_profile": {
+    "photo_path": "/Users/gavinwalker/Desktop/AI OUTFIT PICS/IMG_6603.JPG",
+    "body_type": "curvy",
+    "body_type_label": "Curvy/Plus",
+    "has_glasses": true,
+    "created_at": "2025-11-04T22:18:49.509484"
+  },
+  "test_date": "2025-11-04T22:20:33.821740",
+  "results": [
+    {
+      "outfit": "outfit1_red_dress",
+      "success": true,
+      "path": "vto_consistency_test/01_outfit1_red_dress.png"
+    },
+    {
+      "outfit": "outfit2_green_dress",
+      "success": true,
+      "path": "vto_consistency_test/02_outfit2_green_dress.png"
+    },
+    {
+      "outfit": "outfit3_jumper_jeans",
+      "success": true,
+      "path": "vto_consistency_test/03_outfit3_jumper_jeans.png"
+    },
+    {
+      "outfit": "outfit4_leather_pants",
+      "success": false
+    },
+    {
+      "outfit": "outfit5_bomber_jacket",
+      "success": true,
+      "path": "vto_consistency_test/05_outfit5_bomber_jacket.png"
+    },
+    {
+      "outfit": "outfit6_burgundy_dress",
+      "success": true,
+      "path": "vto_consistency_test/06_outfit6_burgundy_dress.png"
+    }
+  ],
+  "success_rate": "5/6"
+}
