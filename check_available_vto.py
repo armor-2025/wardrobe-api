@@ -6,7 +6,7 @@ import os
 import base64
 import requests
 
-os.environ['REPLICATE_API_TOKEN'] = 'r8_bIdtjjiKN8O7Uxe3cCX1VzH1kTYM8TJ4JpoRF'
+os.environ['REPLICATE_API_TOKEN'] = os.getenv('REPLICATE_API_TOKEN', '')
 
 print("=" * 70)
 print("🔍 Testing Available VTO Models")

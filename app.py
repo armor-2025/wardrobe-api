@@ -1764,15 +1764,17 @@ async def extract_mask_from_result(original_bytes: bytes, sam_result: dict) -> b
             if "predictions" in prompt_result and len(prompt_result["predictions"]) > 0:
                 prediction = prompt_result["predictions"][0]
                 
-                # Handle polygon points
-                if "points" in prediction:
-                    points = prediction["points"]
-                    
+                # Handle polygon masks from SAM 3
+                if "masks" in prediction and len(prediction["masks"]) > 0:
+                    # SAM 3 returns masks as list of polygons: [[[x,y], [x,y], ...], ...]
                     mask = Image.new("L", (width, height), 0)
                     draw = ImageDraw.Draw(mask)
                     
-                    poly_points = [(p["x"], p["y"]) for p in points]
-                    draw.polygon(poly_points, fill=255)
+                    # Draw all polygon masks
+                    for polygon in prediction["masks"]:
+                        poly_points = [(p[0], p[1]) for p in polygon]
+                        if len(poly_points) >= 3:
+                            draw.polygon(poly_points, fill=255)
                     
                     result = Image.new("RGBA", (width, height), (0, 0, 0, 0))
                     result.paste(img, mask=mask)
