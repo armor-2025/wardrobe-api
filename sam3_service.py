@@ -13,7 +13,7 @@ from io import BytesIO
 
 class SAM3Service:
     def __init__(self):
-        self.api_key = os.getenv('ROBOFLOW_API_KEY', 'ec64q9NexYmlF1Z1s7KB')
+        self.api_key = os.getenv('ROBOFLOW_API_KEY')
         self.api_url = "https://serverless.roboflow.com/sam3/concept_segment"
     
     async def segment_item(self, image_data: bytes, text_prompt: str) -> Dict[str, Any]:
@@ -21,26 +21,8 @@ class SAM3Service:
         Segment a single item from an image using SAM 3 text prompt
         """
         try:
-            # Resize image to known size for consistent SAM coordinates
-            from PIL import Image
-            from io import BytesIO
-            
-            img = Image.open(BytesIO(image_data))
-            original_size = img.size  # (width, height)
-            
-            # Resize to max 1024 on longest side (SAM works better with this)
-            max_size = 1024
-            ratio = min(max_size / img.width, max_size / img.height)
-            if ratio < 1:
-                new_size = (int(img.width * ratio), int(img.height * ratio))
-                img = img.resize(new_size, Image.LANCZOS)
-            
-            # Convert back to bytes
-            buffer = BytesIO()
-            img.save(buffer, format='PNG')
-            resized_bytes = buffer.getvalue()
-            
-            image_b64 = base64.b64encode(resized_bytes).decode('utf-8')
+            # Send original image to SAM - it returns coordinates in original image space
+            image_b64 = base64.b64encode(image_data).decode('utf-8')
             
             payload = {
                 "image": {

@@ -111,22 +111,31 @@ Return ONLY a JSON object:
 
 CRITICAL RULES:
 - "label" must be ONE simple word only for AI segmentation: shirt, pants, jacket, dress, skirt, shorts, coat, sweater, shoes, boots, hat, bag
-- "description" describes FIT and STYLE only - do NOT include color in description
-- "color" is a SEPARATE field - put the color here, not in description or label
+- "description" MUST include the item type (e.g. "denim jacket", "graphic t-shirt", "wide leg jeans") plus style details
+- "description" rules by category:
+  * TOPS: Include item type. Only add "oversized" or "cropped" if clearly visible. Add "longsleeve" if longsleeve. Do NOT say "regular fit" for tops.
+  * BOTTOMS: Include item type + fit (wide leg, slim, skinny, straight leg, tapered). E.g. "wide leg jeans", "slim chinos"
+  * OUTERWEAR: Include item type + style. E.g. "denim trucker jacket", "oversized wool coat", "puffer jacket"
+  * DRESSES: Include length + style. Add "longsleeve" if longsleeve. E.g. "midi wrap dress", "longsleeve maxi dress"
+  * FOOTWEAR: Include style. E.g. "low-top sneakers", "leather boots", "suede loafers"
+- "color" is a SEPARATE field - do NOT include color in description
 - For single_item: items array has exactly 1 item
 - For outfit: items array has all visible clothing items (typically 2-5 items)
 - Category MUST be one of: tops, bottoms, outerwear, footwear, accessories, dresses
 - Don't include bags, jewelry, or small accessories unless prominently featured
 
 EXAMPLES:
-Good: {"label": "jacket", "description": "oversized denim trucker", "color": "blue", "category": "outerwear"}
-Bad: {"label": "blue denim jacket", "description": "blue denim jacket", "color": "blue", "category": "outerwear"}
+Good: {"label": "jacket", "description": "denim trucker jacket", "color": "blue", "category": "outerwear"}
+Bad: {"label": "jacket", "description": "classic fit denim", "color": "blue", "category": "outerwear"}
 
-Good: {"label": "jeans", "description": "slim fit tapered", "color": "black", "category": "bottoms"}
-Bad: {"label": "black jeans", "description": "black slim jeans", "color": "black", "category": "bottoms"}
+Good: {"label": "pants", "description": "wide leg drawstring trousers", "color": "black", "category": "bottoms"}
+Bad: {"label": "pants", "description": "wide leg drawstring", "color": "black", "category": "bottoms"}
 
-Good: {"label": "t-shirt", "description": "graphic print oversized crew neck", "color": "white", "category": "tops"}
-Bad: {"label": "white graphic t-shirt", "description": "white t-shirt with print", "color": "white", "category": "tops"}
+Good: {"label": "shirt", "description": "graphic print t-shirt", "color": "white", "category": "tops"}
+Bad: {"label": "shirt", "description": "crew neck graphic print", "color": "white", "category": "tops"}
+
+Good: {"label": "shirt", "description": "longsleeve oxford shirt", "color": "blue", "category": "tops"}
+Good: {"label": "dress", "description": "longsleeve midi wrap dress", "color": "green", "category": "dresses"}
 
 Return ONLY valid JSON, no other text."""
 

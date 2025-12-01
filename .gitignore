@@ -5,3 +5,17 @@ uploads/
 *.pyc
 __pycache__/
 .env
+
+# Test files with hardcoded keys
+test_*.py
+check_*.py
+*_test.py
+*_BACKUP*.py
+vto_*.py
+*_system.py
+garment_analyzer.py
+hybrid_*.py
+ultimate_*.py
+visual_search*.py
+outfit_shop*.py
+complete_shop*.py
