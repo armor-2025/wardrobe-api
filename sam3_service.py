@@ -21,7 +21,26 @@ class SAM3Service:
         Segment a single item from an image using SAM 3 text prompt
         """
         try:
-            image_b64 = base64.b64encode(image_data).decode('utf-8')
+            # Resize image to known size for consistent SAM coordinates
+            from PIL import Image
+            from io import BytesIO
+            
+            img = Image.open(BytesIO(image_data))
+            original_size = img.size  # (width, height)
+            
+            # Resize to max 1024 on longest side (SAM works better with this)
+            max_size = 1024
+            ratio = min(max_size / img.width, max_size / img.height)
+            if ratio < 1:
+                new_size = (int(img.width * ratio), int(img.height * ratio))
+                img = img.resize(new_size, Image.LANCZOS)
+            
+            # Convert back to bytes
+            buffer = BytesIO()
+            img.save(buffer, format='PNG')
+            resized_bytes = buffer.getvalue()
+            
+            image_b64 = base64.b64encode(resized_bytes).decode('utf-8')
             
             payload = {
                 "image": {
@@ -40,6 +59,10 @@ class SAM3Service:
                 )
                 response.raise_for_status()
                 result = response.json()
+            
+            # Add original and resized dimensions to result for scaling
+            result["original_size"] = original_size
+            result["resized_size"] = img.size
             
             return {"success": True, "prompt": text_prompt, "result": result}
             

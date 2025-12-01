@@ -1751,15 +1751,14 @@ async def extract_mask_from_result(original_bytes: bytes, sam_result: dict) -> b
     """Extract segmented item from SAM 3 result"""
     from PIL import Image, ImageDraw
     from io import BytesIO
-    import numpy as np
     
     try:
         img = Image.open(BytesIO(original_bytes)).convert("RGBA")
-        width, height = img.size
+        orig_width, orig_height = img.size
         
-        # SAM 3 processes images at a fixed size (typically 400x400 or 640x640)
-        # We need to find the max coordinate to determine the scale
-        SAM_SIZE = 400  # SAM 3 typically uses 400x400
+        # Get the resized dimensions that were sent to SAM
+        resized_size = sam_result.get("resized_size", (orig_width, orig_height))
+        resized_width, resized_height = resized_size
         
         # Parse SAM 3 response
         if "prompt_results" in sam_result and len(sam_result["prompt_results"]) > 0:
@@ -1770,28 +1769,14 @@ async def extract_mask_from_result(original_bytes: bytes, sam_result: dict) -> b
                 
                 # Handle polygon masks from SAM 3
                 if "masks" in prediction and len(prediction["masks"]) > 0:
-                    # Find max coordinates to determine SAM's working size
-                    all_coords = []
-                    for polygon in prediction["masks"]:
-                        for p in polygon:
-                            all_coords.extend([p[0], p[1]])
+                    # SAM returns coordinates for the resized image
+                    # Scale from resized dimensions to original dimensions
+                    scale_x = orig_width / resized_width
+                    scale_y = orig_height / resized_height
                     
-                    if all_coords:
-                        max_coord = max(all_coords)
-                        # Determine SAM size (round up to nearest 100)
-                        sam_size = ((max_coord // 100) + 1) * 100
-                        if sam_size < 400:
-                            sam_size = 400
-                        
-                        # Calculate scale factors
-                        scale_x = width / sam_size
-                        scale_y = height / sam_size
-                        
-                        print(f"Image size: {width}x{height}, SAM size: {sam_size}, Scale: {scale_x:.2f}x{scale_y:.2f}")
-                    else:
-                        scale_x = scale_y = 1.0
+                    print(f"Original: {orig_width}x{orig_height}, Resized sent to SAM: {resized_width}x{resized_height}, Scale: {scale_x:.2f}x{scale_y:.2f}")
                     
-                    mask = Image.new("L", (width, height), 0)
+                    mask = Image.new("L", (orig_width, orig_height), 0)
                     draw = ImageDraw.Draw(mask)
                     
                     # Draw all polygon masks with scaled coordinates
@@ -1800,7 +1785,7 @@ async def extract_mask_from_result(original_bytes: bytes, sam_result: dict) -> b
                         if len(poly_points) >= 3:
                             draw.polygon(poly_points, fill=255)
                     
-                    result = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+                    result = Image.new("RGBA", (orig_width, orig_height), (0, 0, 0, 0))
                     result.paste(img, mask=mask)
                     
                     bbox = result.getbbox()
