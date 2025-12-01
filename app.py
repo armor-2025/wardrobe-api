@@ -1757,6 +1757,10 @@ async def extract_mask_from_result(original_bytes: bytes, sam_result: dict) -> b
         img = Image.open(BytesIO(original_bytes)).convert("RGBA")
         width, height = img.size
         
+        # SAM 3 processes images at a fixed size (typically 400x400 or 640x640)
+        # We need to find the max coordinate to determine the scale
+        SAM_SIZE = 400  # SAM 3 typically uses 400x400
+        
         # Parse SAM 3 response
         if "prompt_results" in sam_result and len(sam_result["prompt_results"]) > 0:
             prompt_result = sam_result["prompt_results"][0]
@@ -1766,13 +1770,33 @@ async def extract_mask_from_result(original_bytes: bytes, sam_result: dict) -> b
                 
                 # Handle polygon masks from SAM 3
                 if "masks" in prediction and len(prediction["masks"]) > 0:
-                    # SAM 3 returns masks as list of polygons: [[[x,y], [x,y], ...], ...]
+                    # Find max coordinates to determine SAM's working size
+                    all_coords = []
+                    for polygon in prediction["masks"]:
+                        for p in polygon:
+                            all_coords.extend([p[0], p[1]])
+                    
+                    if all_coords:
+                        max_coord = max(all_coords)
+                        # Determine SAM size (round up to nearest 100)
+                        sam_size = ((max_coord // 100) + 1) * 100
+                        if sam_size < 400:
+                            sam_size = 400
+                        
+                        # Calculate scale factors
+                        scale_x = width / sam_size
+                        scale_y = height / sam_size
+                        
+                        print(f"Image size: {width}x{height}, SAM size: {sam_size}, Scale: {scale_x:.2f}x{scale_y:.2f}")
+                    else:
+                        scale_x = scale_y = 1.0
+                    
                     mask = Image.new("L", (width, height), 0)
                     draw = ImageDraw.Draw(mask)
                     
-                    # Draw all polygon masks
+                    # Draw all polygon masks with scaled coordinates
                     for polygon in prediction["masks"]:
-                        poly_points = [(p[0], p[1]) for p in polygon]
+                        poly_points = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in polygon]
                         if len(poly_points) >= 3:
                             draw.polygon(poly_points, fill=255)
                     
