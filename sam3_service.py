@@ -43,8 +43,6 @@ class SAM3Service:
                 result = response.json()
             
             # Add original and resized dimensions to result for scaling
-            result["original_size"] = original_size
-            result["resized_size"] = img.size
             
             return {"success": True, "prompt": text_prompt, "result": result}
             
