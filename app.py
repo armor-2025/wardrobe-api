@@ -1756,10 +1756,6 @@ async def extract_mask_from_result(original_bytes: bytes, sam_result: dict) -> b
         img = Image.open(BytesIO(original_bytes)).convert("RGBA")
         orig_width, orig_height = img.size
         
-        # Get the resized dimensions that were sent to SAM
-        resized_size = sam_result.get("resized_size", (orig_width, orig_height))
-        resized_width, resized_height = resized_size
-        
         # Parse SAM 3 response
         if "prompt_results" in sam_result and len(sam_result["prompt_results"]) > 0:
             prompt_result = sam_result["prompt_results"][0]
@@ -1772,20 +1768,15 @@ async def extract_mask_from_result(original_bytes: bytes, sam_result: dict) -> b
                 
                 # Handle polygon masks from SAM 3
                 if "masks" in best_pred and len(best_pred["masks"]) > 0:
-                    # SAM returns coordinates for the resized image
-                    # Scale from resized dimensions to original dimensions
-                    scale_x = orig_width / resized_width
-                    scale_y = orig_height / resized_height
-                    
-                    print(f"Original: {orig_width}x{orig_height}, Resized: {resized_width}x{resized_height}, Scale: {scale_x:.2f}x{scale_y:.2f}, Confidence: {confidence:.2f}")
+                    print(f"Extracting mask: {orig_width}x{orig_height}, Confidence: {confidence:.2f}")
                     
                     mask = Image.new("L", (orig_width, orig_height), 0)
                     draw = ImageDraw.Draw(mask)
                     
-                    # Filter and draw masks - only use polygons with enough points (filter noise)
+                    # SAM returns coordinates in original image space - no scaling needed!
                     for polygon in best_pred["masks"]:
                         if len(polygon) >= 20:  # Skip tiny noise polygons
-                            poly_points = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in polygon]
+                            poly_points = [(p[0], p[1]) for p in polygon]
                             draw.polygon(poly_points, fill=255)
                     
                     result = Image.new("RGBA", (orig_width, orig_height), (0, 0, 0, 0))
