@@ -12,7 +12,7 @@ import google.generativeai as genai
 import json
 import time
 
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'
+os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'
 genai.configure(api_key=os.environ['GEMINI_API_KEY'])
 
 ASOS_API_KEY = "6b07df1199mshac1029ebcab9bf5p1fd595jsn07fabec323e5"

@@ -29,7 +29,7 @@ from insightface.app import FaceAnalysis
 from insightface.model_zoo import get_model
 
 # Configuration
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'
+os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'
 genai.configure(api_key=os.environ['GEMINI_API_KEY'])
 
 

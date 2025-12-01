@@ -1,7 +1,7 @@
 import os
 import asyncio
 
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'
+os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'
 
 from vto_enhanced import EnhancedVTOService
 

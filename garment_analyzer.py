@@ -16,7 +16,7 @@ import os
 from PIL import Image
 import google.generativeai as genai
 
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'
+os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'
 genai.configure(api_key=os.environ['GEMINI_API_KEY'])
 
 

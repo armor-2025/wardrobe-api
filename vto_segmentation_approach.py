@@ -157,7 +157,7 @@ if __name__ == "__main__":
         print("🎯 Segmentation-Based VTO Test")
         print("=" * 70)
         
-        os.environ['GEMINI_API_KEY'] = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'
+        os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'
         
         vto = SegmentationVTO()
         

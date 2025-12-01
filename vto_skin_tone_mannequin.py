@@ -9,7 +9,7 @@ import google.generativeai as genai
 import cv2
 import numpy as np
 
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'
+os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'
 
 
 def extract_skin_tone(image_bytes: bytes) -> str:

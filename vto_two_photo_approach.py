@@ -10,7 +10,7 @@ import io
 import base64
 import google.generativeai as genai
 
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'
+os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'
 
 
 class TwoPhotoVTO:

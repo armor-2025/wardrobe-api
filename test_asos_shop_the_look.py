@@ -11,7 +11,7 @@ import io
 import google.generativeai as genai
 import json
 
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'
+os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'
 genai.configure(api_key=os.environ['GEMINI_API_KEY'])
 
 # ASOS API credentials

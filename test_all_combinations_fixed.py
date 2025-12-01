@@ -14,7 +14,7 @@ print("🔬 TESTING ALL VTO COMBINATIONS")
 print("=" * 70)
 
 FASHN_API_KEY = 'fa-cd1JlcPckbGK-j2IesXZQlXgXK54h1vOOFXyw'
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'
+os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'
 
 genai.configure(api_key=os.environ['GEMINI_API_KEY'])
 gemini_model = genai.GenerativeModel('gemini-2.5-flash-image')

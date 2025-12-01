@@ -12,7 +12,7 @@ import torch
 import clip
 
 # Set up API keys
-GEMINI_KEY = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'
+GEMINI_KEY = 'YOUR_KEY_HERE'
 SERPAPI_KEY = '0da357d5fb4a223dc85215b798a5c9c29201b8c8d2a3c7620266aa6176e667c8'
 
 print("=" * 70)

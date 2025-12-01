@@ -30,7 +30,7 @@ def save_result(data_url: str, filename: str):
     return False
 
 
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'
+os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'
 async def test_enhanced_vto():
     print("=" * 70)
     print("🚀 Enhanced VTO System - Comprehensive Test")

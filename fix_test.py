@@ -10,7 +10,7 @@ if 'GEMINI_API_KEY' not in content:
     # Find where to insert (after imports, before async def)
     for i, line in enumerate(lines):
         if 'async def test_enhanced_vto' in line:
-            lines.insert(i, "os.environ['GEMINI_API_KEY'] = 'AIzaSyAgMKoVUg3IBhLKefBbxYPMf3VypicNzlU'")
+            lines.insert(i, "os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'")
             lines.insert(i, '')
             break
     
