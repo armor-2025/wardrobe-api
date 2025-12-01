@@ -110,7 +110,7 @@ Return ONLY a JSON object:
 }
 
 CRITICAL RULES:
-- "label" must be ONE or TWO simple words only (e.g., "jacket", "t-shirt", "jeans") - this is used for AI segmentation
+- "label" must be ONE simple word only for AI segmentation: shirt, pants, jacket, dress, skirt, shorts, coat, sweater, shoes, boots, hat, bag
 - "description" describes FIT and STYLE only - do NOT include color in description
 - "color" is a SEPARATE field - put the color here, not in description or label
 - For single_item: items array has exactly 1 item
