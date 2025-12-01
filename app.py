@@ -1533,7 +1533,7 @@ async def upload_wardrobe_smart(
         
         if seg_result["success"]:
             # Extract the segmented image
-            extracted_bytes = await extract_mask_from_result(file_bytes, seg_result["result"])
+            extracted_bytes = await extract_mask_from_result(file_bytes, seg_result["result"], category=item_info.get("category", ""))
             
             if extracted_bytes:
                 queued_items.append(QueuedItem(
@@ -1747,51 +1747,65 @@ async def process_single_item(file_bytes: bytes) -> bytes:
         return file_bytes
 
 
-async def extract_mask_from_result(original_bytes: bytes, sam_result: dict) -> bytes:
-    """Extract segmented item from SAM 3 result"""
+async def extract_mask_from_result(original_bytes: bytes, sam_result: dict, category: str = "") -> bytes:
+    """Extract segmented item from SAM 3 result - combines paired items (shoes, gloves)"""
     from PIL import Image, ImageDraw
     from io import BytesIO
+    
+    # Categories that come in pairs
+    PAIRED_CATEGORIES = ["footwear", "shoes", "gloves"]
     
     try:
         img = Image.open(BytesIO(original_bytes)).convert("RGBA")
         orig_width, orig_height = img.size
         
-        # Parse SAM 3 response
         if "prompt_results" in sam_result and len(sam_result["prompt_results"]) > 0:
             prompt_result = sam_result["prompt_results"][0]
             predictions = prompt_result.get("predictions", [])
             
             if predictions:
-                # Find the prediction with highest confidence
-                best_pred = max(predictions, key=lambda p: p.get("confidence", 0))
-                confidence = best_pred.get("confidence", 0)
+                # Check if this is a paired category
+                category_lower = category.lower()
+                is_paired = any(paired in category_lower for paired in PAIRED_CATEGORIES)
                 
-                # Handle polygon masks from SAM 3
-                if "masks" in best_pred and len(best_pred["masks"]) > 0:
+                mask = Image.new("L", (orig_width, orig_height), 0)
+                draw = ImageDraw.Draw(mask)
+                
+                if is_paired:
+                    # Combine all high-confidence predictions (for shoes, gloves)
+                    print(f"Paired category {category} - combining {len(predictions)} predictions")
+                    for pred in predictions:
+                        confidence = pred.get("confidence", 0)
+                        if confidence > 0.5 and "masks" in pred:
+                            for polygon in pred["masks"]:
+                                if len(polygon) >= 20:
+                                    poly_points = [(p[0], p[1]) for p in polygon]
+                                    draw.polygon(poly_points, fill=255)
+                else:
+                    # Single item - use highest confidence prediction
+                    best_pred = max(predictions, key=lambda p: p.get("confidence", 0))
+                    confidence = best_pred.get("confidence", 0)
                     print(f"Extracting mask: {orig_width}x{orig_height}, Confidence: {confidence:.2f}")
-                    
-                    mask = Image.new("L", (orig_width, orig_height), 0)
-                    draw = ImageDraw.Draw(mask)
-                    
-                    # SAM returns coordinates in original image space - no scaling needed!
-                    for polygon in best_pred["masks"]:
-                        if len(polygon) >= 20:  # Skip tiny noise polygons
-                            poly_points = [(p[0], p[1]) for p in polygon]
-                            draw.polygon(poly_points, fill=255)
-                    
-                    result = Image.new("RGBA", (orig_width, orig_height), (0, 0, 0, 0))
-                    result.paste(img, mask=mask)
-                    
-                    bbox = result.getbbox()
-                    if bbox:
-                        result = result.crop(bbox)
-                    
-                    output = BytesIO()
-                    result.save(output, format="PNG")
-                    return output.getvalue()
+                    if "masks" in best_pred:
+                        for polygon in best_pred["masks"]:
+                            if len(polygon) >= 20:
+                                poly_points = [(p[0], p[1]) for p in polygon]
+                                draw.polygon(poly_points, fill=255)
+                
+                result = Image.new("RGBA", (orig_width, orig_height), (0, 0, 0, 0))
+                result.paste(img, mask=mask)
+                
+                bbox = result.getbbox()
+                if bbox:
+                    result = result.crop(bbox)
+                
+                output = BytesIO()
+                result.save(output, format="PNG")
+                return output.getvalue()
         
         return None
         
     except Exception as e:
         print(f"Mask extraction error: {e}")
+        return None
         return None
