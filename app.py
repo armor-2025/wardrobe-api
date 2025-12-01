@@ -1763,26 +1763,29 @@ async def extract_mask_from_result(original_bytes: bytes, sam_result: dict) -> b
         # Parse SAM 3 response
         if "prompt_results" in sam_result and len(sam_result["prompt_results"]) > 0:
             prompt_result = sam_result["prompt_results"][0]
+            predictions = prompt_result.get("predictions", [])
             
-            if "predictions" in prompt_result and len(prompt_result["predictions"]) > 0:
-                prediction = prompt_result["predictions"][0]
+            if predictions:
+                # Find the prediction with highest confidence
+                best_pred = max(predictions, key=lambda p: p.get("confidence", 0))
+                confidence = best_pred.get("confidence", 0)
                 
                 # Handle polygon masks from SAM 3
-                if "masks" in prediction and len(prediction["masks"]) > 0:
+                if "masks" in best_pred and len(best_pred["masks"]) > 0:
                     # SAM returns coordinates for the resized image
                     # Scale from resized dimensions to original dimensions
                     scale_x = orig_width / resized_width
                     scale_y = orig_height / resized_height
                     
-                    print(f"Original: {orig_width}x{orig_height}, Resized sent to SAM: {resized_width}x{resized_height}, Scale: {scale_x:.2f}x{scale_y:.2f}")
+                    print(f"Original: {orig_width}x{orig_height}, Resized: {resized_width}x{resized_height}, Scale: {scale_x:.2f}x{scale_y:.2f}, Confidence: {confidence:.2f}")
                     
                     mask = Image.new("L", (orig_width, orig_height), 0)
                     draw = ImageDraw.Draw(mask)
                     
-                    # Draw all polygon masks with scaled coordinates
-                    for polygon in prediction["masks"]:
-                        poly_points = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in polygon]
-                        if len(poly_points) >= 3:
+                    # Filter and draw masks - only use polygons with enough points (filter noise)
+                    for polygon in best_pred["masks"]:
+                        if len(polygon) >= 20:  # Skip tiny noise polygons
+                            poly_points = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in polygon]
                             draw.polygon(poly_points, fill=255)
                     
                     result = Image.new("RGBA", (orig_width, orig_height), (0, 0, 0, 0))
