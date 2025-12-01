@@ -1809,3 +1809,61 @@ async def extract_mask_from_result(original_bytes: bytes, sam_result: dict, cate
         print(f"Mask extraction error: {e}")
         return None
         return None
+
+
+@app.post("/wardrobe/prettify")
+async def prettify_item(
+    image_url: str,
+    authorization: str = Header(None)
+):
+    """Prettify a segmented garment image using Gemini"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db_session(), token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    from gemini_prettify import GeminiPrettify
+    import httpx
+    
+    try:
+        # Download the image
+        async with httpx.AsyncClient() as client:
+            response = await client.get(image_url)
+            image_bytes = response.content
+        
+        # Save temporarily
+        temp_path = f"uploads/temp_{uuid.uuid4()}.png"
+        with open(temp_path, "wb") as f:
+            f.write(image_bytes)
+        
+        # Prettify
+        prettifier = GeminiPrettify()
+        result = prettifier.prettify(temp_path)
+        
+        # Clean up temp file
+        os.remove(temp_path)
+        
+        if result is None:
+            raise HTTPException(status_code=500, detail="Prettify failed")
+        
+        # Save result
+        upload_dir = Path("uploads/prettified")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        filename = f"{uuid.uuid4()}.png"
+        result_path = upload_dir / filename
+        result.save(result_path, "PNG")
+        
+        prettified_url = f"https://yow-api.onrender.com/uploads/prettified/{filename}"
+        
+        return {
+            "success": True,
+            "prettified_url": prettified_url,
+            "cost": 0.015
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prettify error: {str(e)}")
