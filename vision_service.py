@@ -122,7 +122,7 @@ CRITICAL RULES:
 - For single_item: items array has exactly 1 item
 - For outfit: items array has all visible clothing items (typically 2-5 items)
 - Category MUST be one of: tops, bottoms, outerwear, footwear, accessories, dresses
-- Don't include bags, jewelry, or small accessories unless prominently featured
+- Include bags if clearly visible. Don't include jewelry or small accessories unless prominently featured
 
 EXAMPLES:
 Good: {"label": "jacket", "description": "denim trucker jacket", "color": "blue", "category": "outerwear"}
