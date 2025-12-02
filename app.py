@@ -2078,7 +2078,7 @@ CRITICAL REQUIREMENTS:
 - Maintain the original image dimensions and framing"""
 
         # Call Gemini
-        model = genai_vto.GenerativeModel('gemini-2.5-flash-preview-05-20')
+        model = genai_vto.GenerativeModel('gemini-2.5-flash-image')
         content_array = [prompt, base_image] + garment_images
         
         response = model.generate_content(content_array)
