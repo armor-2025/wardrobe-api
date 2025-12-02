@@ -2090,4 +2090,4 @@ CRITICAL REQUIREMENTS:
         raise HTTPException(status_code=500, detail="No image generated")
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"VTO error: {str(e)}")
+        import traceback; traceback.print_exc(); raise HTTPException(status_code=500, detail=f"VTO error: {str(e)} - {traceback.format_exc()}")
