@@ -1868,3 +1868,65 @@ async def prettify_item(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prettify error: {str(e)}")
+
+
+# Updated prettify endpoint with description/category
+@app.post("/wardrobe/prettify-v2")
+async def prettify_item_v2(
+    image_url: str,
+    description: str = "garment",
+    category: str = "clothing",
+    authorization: str = Header(None)
+):
+    """Prettify a segmented garment image using Gemini with description context"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    db = next(get_db())
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    from gemini_prettify import GeminiPrettify
+    import httpx
+    
+    try:
+        # Download the image
+        async with httpx.AsyncClient() as client:
+            response = await client.get(image_url)
+            image_bytes = response.content
+        
+        # Save temporarily
+        temp_path = f"uploads/temp_{uuid.uuid4()}.png"
+        with open(temp_path, "wb") as f:
+            f.write(image_bytes)
+        
+        # Prettify with description context
+        prettifier = GeminiPrettify()
+        result = prettifier.prettify(temp_path, description=description, category=category)
+        
+        # Clean up temp file
+        os.remove(temp_path)
+        
+        if result is None:
+            raise HTTPException(status_code=500, detail="Prettify failed")
+        
+        # Save result as PNG
+        upload_dir = Path("uploads/prettified")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        filename = f"{uuid.uuid4()}.png"
+        result_path = upload_dir / filename
+        result.save(result_path, "PNG")
+        
+        prettified_url = f"https://yow-api.onrender.com/uploads/prettified/{filename}"
+        
+        return {
+            "success": True,
+            "prettified_url": prettified_url,
+            "cost": 0.015
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prettify error: {str(e)}")
