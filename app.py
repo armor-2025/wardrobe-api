@@ -1940,3 +1940,84 @@ async def prettify_item_v2(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prettify error: {str(e)}")
+
+
+# ==================== ACCESSORY OVERLAY SYSTEM ====================
+# Sequential overlay: Add 2 accessories per call, chain results
+
+@app.post("/vto/overlay-accessories")
+async def overlay_accessories(
+    authorization: str = Header(None)
+):
+    """
+    Add accessories to existing VTO image
+    Uses the proven 2+1+1 pattern for up to 4 accessories
+    """
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    db = next(get_db())
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    import base64
+    from io import BytesIO
+    
+    data = await request.json()
+    base_b64 = data.get('base_image_base64')
+    accessory_images_b64 = data.get('accessory_images_base64', [])
+    
+    if not base_b64 or not accessory_images_b64:
+        raise HTTPException(status_code=400, detail="Missing base image or accessories")
+    
+    count = len(accessory_images_b64)
+    
+    # The proven prompt
+    prompt = f"""CRITICAL INSTRUCTION: You are doing an OVERLAY task, NOT generating a new image.
+
+IMAGE 1 is the BASE. You must keep this image's EXACT dimensions, framing, and aspect ratio. The person's FULL BODY from head to feet must remain visible EXACTLY as shown.
+
+DO NOT:
+- Crop or cut off the bottom (feet must stay visible)
+- Zoom in or reframe
+- Change the person's pose, face, hair, or body
+- Modify the original clothing
+- Alter the background
+
+DO:
+- Add the {count} accessory items naturally on top of the existing image
+- Match lighting and shadows
+- Position accessories realistically (sunglasses on face, bag in hand/shoulder)
+
+This is like placing stickers on a photo - the photo stays identical, you just add items on top."""
+
+    try:
+        # Decode images
+        base_image = Image.open(BytesIO(base64.b64decode(base_b64)))
+        accessory_images = [Image.open(BytesIO(base64.b64decode(acc))) for acc in accessory_images_b64]
+        
+        # Use Gemini 2.5 Flash Image
+        model = genai.GenerativeModel('gemini-2.5-flash-image')
+        
+        # Build content array
+        content_array = [prompt, base_image] + accessory_images
+        
+        response = model.generate_content(content_array)
+        
+        # Extract image
+        if hasattr(response, 'candidates') and response.candidates:
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, 'inline_data') and part.inline_data.data:
+                    result_b64 = base64.b64encode(part.inline_data.data).decode()
+                    return {
+                        "success": True,
+                        "result_image_base64": result_b64,
+                        "cost": 0.04
+                    }
+        
+        raise HTTPException(status_code=500, detail="No image generated")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Overlay error: {str(e)}")
