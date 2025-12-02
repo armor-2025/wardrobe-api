@@ -189,16 +189,13 @@ class UserProfile:
         self.photo_cv = cv2.imread(photo_path)
         self.has_glasses = False
         self.gender_presentation = gender_presentation  # "menswear" or "womenswear"
+        self.has_glasses = False
         
         # Analyze appearance once (like ALTA does)
         if appearance_description is None:
             self.appearance = self._analyze_appearance()
         else:
             self.appearance = appearance_description
-        
-        # Detect glasses from appearance description
-        if self.appearance and ('glasses' in self.appearance.lower() or 'wearing' in self.appearance.lower()):
-            self.has_glasses = True
     def _analyze_appearance(self):
         """Analyze photo to get consistent hair & skin description (like ALTA)"""
         try:
@@ -208,7 +205,7 @@ class UserProfile:
             is_menswear = self.gender_presentation == "menswear"
             
             if is_menswear:
-                prompt = """Analyze this person's hair, facial hair, AND glasses in detail.
+                prompt = """Analyze this person's hair AND facial hair in detail.
 
 CRITICAL - Hair length definitions:
 - "very short/buzzcut" = less than 1 inch, military cut
@@ -216,26 +213,26 @@ CRITICAL - Hair length definitions:
 - "medium" = 4-6 inches, reaches ears or covers them
 - "long" = past ears, toward shoulders or beyond
 
-Format: "[hair description], [facial hair description], [glasses: yes/no]"
+Format: "[hair description], [facial hair description]"
 
 Hair: State length (very short/short/medium/long), texture, color, and styling
 Facial hair: Be specific - "full thick beard", "short trimmed beard", "light stubble", "goatee", "mustache", or "clean shaven"
 
 Examples:
-- "short textured black hair styled upward (2-3 inches), full thick dark beard, wearing black frame glasses"
-- "very short buzzcut black hair (under 1 inch), clean shaven, no glasses"
-- "medium wavy brown hair covering ears, short trimmed beard, wearing clear frame glasses"
+- "short textured black hair with volume styled upward (2-3 inches), full thick dark beard"
+- "very short buzzcut black hair (under 1 inch), clean shaven"
+- "medium wavy brown hair covering ears, short trimmed beard"
 
 IMPORTANT: If hair is above or at ear level, it's SHORT not medium. Be accurate about measurements."""
             else:
-                prompt = """Analyze this person's hairstyle AND glasses in detail.
+                prompt = """Analyze this person's hairstyle in detail.
 
-Provide: length, texture, color, styling details, and whether they wear glasses
+Provide: length, texture, color, and styling details
 
 Examples:
-- "shoulder-length straight blonde hair center-parted, wearing tortoiseshell frame glasses"
-- "long curly dark brown hair with volume, no glasses"
-- "short textured black hair with bangs, wearing round black glasses"
+- "shoulder-length straight blonde hair center-parted"
+- "long curly dark brown hair with volume"
+- "short textured black hair with bangs"
 
 Be detailed and specific."""
             
@@ -254,10 +251,6 @@ Be detailed and specific."""
             self.appearance = self._analyze_appearance()
         else:
             self.appearance = appearance_description
-        
-        # Detect glasses from appearance description
-        if self.appearance and ('glasses' in self.appearance.lower() or 'wearing' in self.appearance.lower()):
-            self.has_glasses = True
     
     def get_body_prompt(self):
         prompt = self.body_type["prompt"]
