@@ -15,7 +15,7 @@ class GeminiPrettify:
             raise ValueError("GEMINI_API_KEY not found")
         
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.0-flash-exp-image-generation')
+        self.model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
         self.max_size = 1024
         print("✅ Gemini Prettify loaded")
     
