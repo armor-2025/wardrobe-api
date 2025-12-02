@@ -18,3 +18,5 @@ PyJWT
 beautifulsoup4
 onnxruntime
 clarifai-grpc
+insightface
+onnxruntime
