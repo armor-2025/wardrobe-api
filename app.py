@@ -2021,3 +2021,69 @@ This is like placing stickers on a photo - the photo stays identical, you just a
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Overlay error: {str(e)}")
+
+
+# ==================== VTO TEST ENDPOINT ====================
+@app.post("/vto/test-generate")
+async def vto_test_generate():
+    """
+    Test VTO endpoint - no auth, accepts URLs
+    DELETE THIS BEFORE PRODUCTION
+    """
+    import httpx
+    import base64
+    from io import BytesIO
+    
+    data = await request.json()
+    base_model_url = data.get('base_model_url')
+    garment_urls = data.get('garment_urls', [])
+    
+    if not base_model_url or not garment_urls:
+        raise HTTPException(status_code=400, detail="Missing base_model_url or garment_urls")
+    
+    try:
+        # Download all images
+        async with httpx.AsyncClient() as client:
+            base_resp = await client.get(base_model_url)
+            base_image = Image.open(BytesIO(base_resp.content))
+            
+            garment_images = []
+            for url in garment_urls[:4]:  # Max 4
+                resp = await client.get(url)
+                garment_images.append(Image.open(BytesIO(resp.content)))
+        
+        # Build prompt
+        prompt = f"""You are a virtual try-on system. 
+        
+IMAGE 1 is a photo of a person (the model).
+IMAGES 2-{len(garment_images)+1} are clothing items.
+
+Generate a NEW photo of the SAME person wearing ALL the clothing items.
+
+CRITICAL REQUIREMENTS:
+- Keep the person's face, body, and pose EXACTLY the same
+- Replace their current clothing with the provided garments
+- Make it look photorealistic - natural lighting, proper fit
+- Show full body from head to toe
+- Maintain the original image dimensions and framing"""
+
+        # Call Gemini
+        model = genai.GenerativeModel('gemini-2.5-flash-image')
+        content_array = [prompt, base_image] + garment_images
+        
+        response = model.generate_content(content_array)
+        
+        # Extract result
+        if hasattr(response, 'candidates') and response.candidates:
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, 'inline_data') and part.inline_data.data:
+                    result_b64 = base64.b64encode(part.inline_data.data).decode()
+                    return {
+                        "success": True,
+                        "result_image_base64": result_b64
+                    }
+        
+        raise HTTPException(status_code=500, detail="No image generated")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"VTO error: {str(e)}")
