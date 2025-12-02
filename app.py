@@ -1912,6 +1912,16 @@ async def prettify_item_v2(
         if result is None:
             raise HTTPException(status_code=500, detail="Prettify failed")
         
+        # Remove white background with rembg for transparent PNG
+        from rembg import remove
+        from io import BytesIO
+        
+        img_buffer = BytesIO()
+        result.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        transparent_bytes = remove(img_buffer.read())
+        result = Image.open(BytesIO(transparent_bytes))
+        
         # Save result as PNG
         upload_dir = Path("uploads/prettified")
         upload_dir.mkdir(parents=True, exist_ok=True)
