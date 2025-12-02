@@ -2025,11 +2025,13 @@ This is like placing stickers on a photo - the photo stays identical, you just a
 
 
 
+
+
 # ==================== VTO TEST ENDPOINT ====================
-from fastapi import Request as FastAPIRequest
+import google.generativeai as genai_vto
 
 @app.post("/vto/test-generate")
-async def vto_test_generate(req: FastAPIRequest):
+async def vto_test_generate(req: Request):
     """
     Test VTO endpoint - no auth, accepts URLs
     DELETE THIS BEFORE PRODUCTION
@@ -2037,6 +2039,10 @@ async def vto_test_generate(req: FastAPIRequest):
     import httpx
     import base64
     from io import BytesIO
+    import os
+    
+    # Configure Gemini
+    genai_vto.configure(api_key=os.getenv('GEMINI_API_KEY'))
     
     data = await req.json()
     base_model_url = data.get('base_model_url')
@@ -2046,13 +2052,13 @@ async def vto_test_generate(req: FastAPIRequest):
         raise HTTPException(status_code=400, detail="Missing base_model_url or garment_urls")
     
     try:
-        # Download all images
-        async with httpx.AsyncClient() as client:
+        # Download all images with longer timeout
+        async with httpx.AsyncClient(timeout=60.0) as client:
             base_resp = await client.get(base_model_url)
             base_image = Image.open(BytesIO(base_resp.content))
             
             garment_images = []
-            for url in garment_urls[:4]:  # Max 4
+            for url in garment_urls[:4]:
                 resp = await client.get(url)
                 garment_images.append(Image.open(BytesIO(resp.content)))
         
@@ -2072,7 +2078,7 @@ CRITICAL REQUIREMENTS:
 - Maintain the original image dimensions and framing"""
 
         # Call Gemini
-        model = genai.GenerativeModel('gemini-2.5-flash-image')
+        model = genai_vto.GenerativeModel('gemini-2.5-flash-preview-05-20')
         content_array = [prompt, base_image] + garment_images
         
         response = model.generate_content(content_array)
@@ -2090,4 +2096,6 @@ CRITICAL REQUIREMENTS:
         raise HTTPException(status_code=500, detail="No image generated")
         
     except Exception as e:
-        import traceback; traceback.print_exc(); raise HTTPException(status_code=500, detail=f"VTO error: {str(e)} - {traceback.format_exc()}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"VTO error: {str(e)}")
