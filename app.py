@@ -2023,9 +2023,13 @@ This is like placing stickers on a photo - the photo stays identical, you just a
         raise HTTPException(status_code=500, detail=f"Overlay error: {str(e)}")
 
 
+
+
 # ==================== VTO TEST ENDPOINT ====================
+from fastapi import Request as FastAPIRequest
+
 @app.post("/vto/test-generate")
-async def vto_test_generate():
+async def vto_test_generate(req: FastAPIRequest):
     """
     Test VTO endpoint - no auth, accepts URLs
     DELETE THIS BEFORE PRODUCTION
@@ -2034,7 +2038,7 @@ async def vto_test_generate():
     import base64
     from io import BytesIO
     
-    data = await request.json()
+    data = await req.json()
     base_model_url = data.get('base_model_url')
     garment_urls = data.get('garment_urls', [])
     
