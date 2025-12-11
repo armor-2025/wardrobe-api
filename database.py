@@ -16,6 +16,12 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     
+    # Profile fields
+    original_photo_url = Column(String, nullable=True)  # Their uploaded photo
+    avatar_url = Column(String, nullable=True)  # Gemini activewear version
+    body_type = Column(String, default="average")  # slim, average, curvy, plus
+    display_name = Column(String, nullable=True)
+    
     wardrobe_items = relationship("WardrobeItem", back_populates="user")
     favorites = relationship("Favorite", back_populates="user")
     outfits = relationship("Outfit", back_populates="user")
@@ -34,6 +40,12 @@ class WardrobeItem(Base):
     style_tags = Column(Text)  # JSON array
     user_edited = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Profile fields
+    original_photo_url = Column(String, nullable=True)  # Their uploaded photo
+    avatar_url = Column(String, nullable=True)  # Gemini activewear version
+    body_type = Column(String, default="average")  # slim, average, curvy, plus
+    display_name = Column(String, nullable=True)
     brand = Column(String, nullable=True)
     size = Column(String, nullable=True)
     price = Column(Float, nullable=True)
@@ -62,6 +74,12 @@ class Favorite(Base):
     notify_on_price_drop = Column(Boolean, default=True)
     product_url = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Profile fields
+    original_photo_url = Column(String, nullable=True)  # Their uploaded photo
+    avatar_url = Column(String, nullable=True)  # Gemini activewear version
+    body_type = Column(String, default="average")  # slim, average, curvy, plus
+    display_name = Column(String, nullable=True)
     last_price_check = Column(DateTime)
 
     stock_status = Column(String)  # "in_stock", "low_stock", "out_of_stock", "unknown"
@@ -81,6 +99,12 @@ class Outfit(Base):
     outfit_data = Column(Text)  # JSON: positions + item IDs
     thumbnail_url = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Profile fields
+    original_photo_url = Column(String, nullable=True)  # Their uploaded photo
+    avatar_url = Column(String, nullable=True)  # Gemini activewear version
+    body_type = Column(String, default="average")  # slim, average, curvy, plus
+    display_name = Column(String, nullable=True)
     
     user = relationship("User", back_populates="outfits")
 
@@ -110,6 +134,12 @@ class SizePreference(Base):
     shoes = Column(Text)  # JSON array: ["8", "9"]
     dresses = Column(Text)  # JSON array: ["8", "10"]
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Profile fields
+    original_photo_url = Column(String, nullable=True)  # Their uploaded photo
+    avatar_url = Column(String, nullable=True)  # Gemini activewear version
+    body_type = Column(String, default="average")  # slim, average, curvy, plus
+    display_name = Column(String, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
 
