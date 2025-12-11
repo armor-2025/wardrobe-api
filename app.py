@@ -29,6 +29,7 @@ from vision_service import get_vision_service
 from stock_checker import get_stock_checker
 
 from fastapi import File, UploadFile
+from vto_gemini3_endpoint import router as vto_gemini3_router
 import shutil
 import uuid
 from pathlib import Path
@@ -136,6 +137,7 @@ def prepare_canvas_image(favorite_id: int):
 
 app = FastAPI()
 from fastapi.staticfiles import StaticFiles
+app.include_router(vto_gemini3_router)
 
 # Serve uploaded files
 # Create uploads directory if it doesn't exist

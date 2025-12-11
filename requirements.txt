@@ -20,3 +20,4 @@ onnxruntime
 clarifai-grpc
 insightface
 onnxruntime
+google-genai>=1.0.0
