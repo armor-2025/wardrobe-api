@@ -206,8 +206,8 @@ Generate now."""
         if image_data:
             # Convert generated avatar to PNG
             # Remove background for transparent PNG
-                avatar_nobg = remove(image_data)
-                avatar_png = convert_to_png(avatar_nobg)
+            avatar_nobg = remove(image_data)
+            avatar_png = convert_to_png(avatar_nobg)
             
             # Upload avatar as PNG
             avatar_path = f"users/{user_id}/avatar_{timestamp}.png"
