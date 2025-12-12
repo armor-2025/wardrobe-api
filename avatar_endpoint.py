@@ -207,7 +207,20 @@ Generate now."""
             # Convert generated avatar to PNG
             # Remove background for transparent PNG
             avatar_nobg = remove(image_data)
-            avatar_png = convert_to_png(avatar_nobg)
+            
+            # Clean grey edge artifact from rembg
+            img = Image.open(io.BytesIO(avatar_nobg))
+            if img.mode == 'RGBA':
+                r, g, b, a = img.split()
+                # Make alpha more binary (remove semi-transparent grey edges)
+                a = a.point(lambda x: 0 if x < 240 else 255)
+                img = Image.merge('RGBA', (r, g, b, a))
+            
+            # Convert to PNG bytes
+            output = io.BytesIO()
+            img.save(output, format='PNG', optimize=True)
+            output.seek(0)
+            avatar_png = output.getvalue()
             
             # Upload avatar as PNG
             avatar_path = f"users/{user_id}/avatar_{timestamp}.png"
