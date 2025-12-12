@@ -168,7 +168,13 @@ class ClarifaiExtractor:
         image.save(img_byte_arr, format='PNG')
         img_byte_arr = img_byte_arr.getvalue()
         
-        output = remove(img_byte_arr)
+        # Remove background with alpha matting for clean edges
+        output = remove(
+            img_byte_arr,
+            alpha_matting=True,
+            alpha_matting_foreground_threshold=240,
+            alpha_matting_background_threshold=10
+        )
         return Image.open(io.BytesIO(output))
     
     def _extract_attributes_from_detection(self, detection: Dict) -> Dict[str, str]:

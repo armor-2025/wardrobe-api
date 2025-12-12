@@ -214,7 +214,13 @@ class RealItemExtractor:
         img_byte_arr = img_byte_arr.getvalue()
         
         # Remove background
-        output = remove(img_byte_arr)
+        # Remove background with alpha matting for clean edges
+        output = remove(
+            img_byte_arr,
+            alpha_matting=True,
+            alpha_matting_foreground_threshold=240,
+            alpha_matting_background_threshold=10
+        )
         
         # Convert back to PIL
         return Image.open(io.BytesIO(output))
