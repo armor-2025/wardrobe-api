@@ -1,10 +1,10 @@
 """
 Avatar Generation Endpoint
-Uses Gemini 2.5 Flash for avatar generation (cheaper at $0.04/image)
-Accepts multipart file upload (proper approach)
+Uses the EXACT prompt from vto_system_final.py
+Accepts multipart file upload with body_type and height parameters
 """
 
-from fastapi import APIRouter, HTTPException, File, UploadFile, Depends
+from fastapi import APIRouter, HTTPException, File, UploadFile, Form
 from pydantic import BaseModel
 from typing import Optional
 import base64
@@ -35,17 +35,30 @@ if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON"):
 
 client = genai.Client()
 
+# Body type prompts (from vto_system_final.py)
+BODY_PROMPTS = {
+    "slim": "slim/athletic build",
+    "average": "average build",
+    "curvy": "curvy build with wider hips",
+    "plus": "plus-size build"
+}
+
+# Height prompts (from vto_system_final.py)
+HEIGHT_PROMPTS = {
+    "petite": "petite height (under 5'4\")",
+    "average": "average height (5'4\"-5'7\")",
+    "tall": "tall height (over 5'7\")"
+}
+
 
 def init_firebase():
     """Initialize Firebase if not already done"""
     if not firebase_admin._apps:
-        # Check for credentials in environment
         firebase_creds = os.environ.get("FIREBASE_CREDENTIALS_JSON")
         if firebase_creds:
             creds_dict = json.loads(firebase_creds)
             cred = credentials.Certificate(creds_dict)
         else:
-            # Use default credentials (for local dev)
             cred = credentials.ApplicationDefault()
         
         firebase_admin.initialize_app(cred, {
@@ -53,12 +66,12 @@ def init_firebase():
         })
 
 
-def upload_to_firebase(image_bytes: bytes, path: str) -> str:
+def upload_to_firebase(image_bytes: bytes, path: str, content_type: str = 'image/png') -> str:
     """Upload image to Firebase Storage and return public URL"""
     init_firebase()
     bucket = storage.bucket()
     blob = bucket.blob(path)
-    blob.upload_from_string(image_bytes, content_type='image/png')
+    blob.upload_from_string(image_bytes, content_type=content_type)
     blob.make_public()
     return blob.public_url
 
@@ -74,137 +87,136 @@ def convert_to_png(image_bytes: bytes) -> bytes:
     return output.getvalue()
 
 
+def detect_image_format(image_bytes: bytes) -> tuple:
+    """Detect image format and return (extension, mime_type)"""
+    img = Image.open(io.BytesIO(image_bytes))
+    fmt = img.format.lower() if img.format else 'jpeg'
+    if fmt == 'jpg':
+        fmt = 'jpeg'
+    mime_type = f"image/{fmt}"
+    ext = 'jpg' if fmt == 'jpeg' else fmt
+    return ext, mime_type
+
+
 class AvatarResponse(BaseModel):
     success: bool
     original_photo_url: Optional[str] = None
     avatar_url: Optional[str] = None
+    description: Optional[str] = None
     error: Optional[str] = None
     cost_estimate: float = 0.04
 
 
 @router.post("/generate", response_model=AvatarResponse)
-async def generate_avatar(photo: UploadFile = File(...)):
+async def generate_avatar(
+    photo: UploadFile = File(...),
+    body_type: str = Form(default="average"),
+    height: str = Form(default="average")
+):
     """
     Generate activewear avatar from uploaded photo.
-    Accepts multipart file upload.
+    EXACT prompt from vto_system_final.py
     """
     
     try:
         # Read the uploaded file
         photo_bytes = await photo.read()
         
-        # Convert to PNG for consistency
-        png_bytes = convert_to_png(photo_bytes)
+        # Detect original format (keep original as-is)
+        ext, mime_type = detect_image_format(photo_bytes)
         
-        # Generate unique user ID for this upload (in production, use actual user ID)
+        # Generate unique user ID
         user_id = str(uuid.uuid4())[:8]
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        # Upload original photo to Firebase
-        original_path = f"users/{user_id}/original_photo_{timestamp}.png"
-        original_url = upload_to_firebase(png_bytes, original_path)
+        # Upload original photo AS-IS (no conversion)
+        original_path = f"users/{user_id}/original_photo_{timestamp}.{ext}"
+        original_url = upload_to_firebase(photo_bytes, original_path, content_type=mime_type)
         
-        # Create Part for Gemini
-        photo_part = Part.from_bytes(data=png_bytes, mime_type="image/png")
+        # Create Part for Gemini (original format)
+        photo_part = Part.from_bytes(data=photo_bytes, mime_type=mime_type)
         
-        # Generate activewear avatar using Gemini 2.5 Flash (cheaper)
-        prompt = """Transform this person into a clean avatar photo for a fashion app.
+        # Get body and height prompts
+        body_prompt = BODY_PROMPTS.get(body_type, BODY_PROMPTS["average"])
+        height_prompt = HEIGHT_PROMPTS.get(height, HEIGHT_PROMPTS["average"])
+        
+        # EXACT PROMPT FROM vto_system_final.py
+        prompt = f"""TASK: Analyze this person AND generate a virtual try-on base image.
 
-REQUIREMENTS:
-1. Keep the EXACT same face - same features, skin tone, expression
-2. Keep the EXACT same body shape and proportions
-3. Dress them in simple black activewear (fitted black t-shirt and black leggings)
-4. Clean, neutral light grey studio background
-5. Professional photography quality
-6. Full body shot, head to toe
-7. Simple, confident standing pose
+STEP 1 - ANALYZE:
+Describe this person's physical appearance for virtual try-ons.
+Include: skin tone, distinctive features (freckles, moles), hair color/length/texture, face shape.
+Format as ONE detailed sentence.
 
-Generate the avatar image."""
+STEP 2 - GENERATE:
+Generate a professional fashion photo of this EXACT person.
+
+BODY SPECIFICATIONS:
+{body_prompt}, {height_prompt}
+
+OUTFIT:
+- Fitted sports bra / crop top in grey-mauve color (muted purple-grey/taupe, hex #8B8589)
+- High-waisted leggings (ankle length) in matching grey-mauve color
+- BARE FEET (no shoes)
+
+BACKGROUND:
+- Light grey studio backdrop
+- Professional fashion photography style
+
+POSE:
+- Simple, natural front-facing standing pose
+- Arms relaxed at sides
+
+STRICT EXCLUSIONS - DO NOT ADD:
+- NO jewelry (no necklaces, earrings, bracelets, rings, watches)
+- NO hair accessories
+- NOTHING except the activewear described
+
+Full body visible from head to bare feet.
+Same face, same hair from the photo.
+
+OUTPUT:
+1. Write "DESCRIPTION:" followed by appearance + body type + height details
+2. Generate the image
+
+Generate now."""
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash-preview-05-20",
+            model="gemini-2.5-flash-image",
             contents=[prompt, photo_part],
             config={"response_modalities": ["image", "text"]}
         )
         
-        # Extract generated image
+        description = None
+        image_data = None
+        
+        # Extract description and image
         for part in response.candidates[0].content.parts:
+            if hasattr(part, 'text') and part.text:
+                text = part.text.strip()
+                if 'DESCRIPTION:' in text:
+                    description = text.split('DESCRIPTION:')[1].strip()
+                else:
+                    description = text
+            
             if hasattr(part, 'inline_data') and part.inline_data:
-                # Convert to PNG
-                avatar_png = convert_to_png(part.inline_data.data)
-                
-                # Upload avatar to Firebase
-                avatar_path = f"users/{user_id}/avatar_{timestamp}.png"
-                avatar_url = upload_to_firebase(avatar_png, avatar_path)
-                
-                return AvatarResponse(
-                    success=True,
-                    original_photo_url=original_url,
-                    avatar_url=avatar_url,
-                    cost_estimate=0.04
-                )
+                image_data = part.inline_data.data
         
-        return AvatarResponse(
-            success=False,
-            error="No avatar image generated"
-        )
-        
-    except Exception as e:
-        return AvatarResponse(
-            success=False,
-            error=str(e)
-        )
-
-
-@router.post("/generate-base64", response_model=AvatarResponse)
-async def generate_avatar_base64(photo_base64: str):
-    """
-    Alternative endpoint that accepts base64 (for testing/backwards compatibility)
-    """
-    try:
-        photo_bytes = base64.b64decode(photo_base64)
-        
-        # Reuse the main logic
-        png_bytes = convert_to_png(photo_bytes)
-        user_id = str(uuid.uuid4())[:8]
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        original_path = f"users/{user_id}/original_photo_{timestamp}.png"
-        original_url = upload_to_firebase(png_bytes, original_path)
-        
-        photo_part = Part.from_bytes(data=png_bytes, mime_type="image/png")
-        
-        prompt = """Transform this person into a clean avatar photo for a fashion app.
-
-REQUIREMENTS:
-1. Keep the EXACT same face - same features, skin tone, expression
-2. Keep the EXACT same body shape and proportions
-3. Dress them in simple black activewear (fitted black t-shirt and black leggings)
-4. Clean, neutral light grey studio background
-5. Professional photography quality
-6. Full body shot, head to toe
-7. Simple, confident standing pose
-
-Generate the avatar image."""
-
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-preview-05-20",
-            contents=[prompt, photo_part],
-            config={"response_modalities": ["image", "text"]}
-        )
-        
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, 'inline_data') and part.inline_data:
-                avatar_png = convert_to_png(part.inline_data.data)
-                avatar_path = f"users/{user_id}/avatar_{timestamp}.png"
-                avatar_url = upload_to_firebase(avatar_png, avatar_path)
-                
-                return AvatarResponse(
-                    success=True,
-                    original_photo_url=original_url,
-                    avatar_url=avatar_url,
-                    cost_estimate=0.04
-                )
+        if image_data:
+            # Convert generated avatar to PNG
+            avatar_png = convert_to_png(image_data)
+            
+            # Upload avatar as PNG
+            avatar_path = f"users/{user_id}/avatar_{timestamp}.png"
+            avatar_url = upload_to_firebase(avatar_png, avatar_path, content_type='image/png')
+            
+            return AvatarResponse(
+                success=True,
+                original_photo_url=original_url,
+                avatar_url=avatar_url,
+                description=description,
+                cost_estimate=0.04
+            )
         
         return AvatarResponse(
             success=False,
@@ -223,7 +235,8 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "model": "gemini-2.5-flash-preview-05-20",
+        "model": "gemini-2.5-flash-image",
         "cost_per_avatar": 0.04,
-        "upload_type": "multipart/form-data"
+        "upload_type": "multipart/form-data",
+        "params": ["photo", "body_type", "height"]
     }
