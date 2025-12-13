@@ -2103,3 +2103,11 @@ CRITICAL REQUIREMENTS:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"VTO error: {str(e)}")
+
+@app.get("/debug/reset-db")
+def reset_database():
+    """Drop and recreate all tables - USE WITH CAUTION"""
+    from database import Base, engine
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    return {"message": "Database reset successfully"}
