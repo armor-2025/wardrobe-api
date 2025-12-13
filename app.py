@@ -76,7 +76,7 @@ def prepare_canvas_image(favorite_id: int):
             f.write(response.content)
         
         # Remove background
-        from rembg import remove, new_session
+        from rembg import remove, new_session, new_session
         from PIL import Image
         import numpy as np
         from scipy import ndimage
@@ -494,7 +494,7 @@ async def upload_wardrobe_file(
 
 # Remove background using rembg
     try:
-        from rembg import remove, new_session
+        from rembg import remove, new_session, new_session
         from PIL import Image, ImageDraw
         import numpy as np
         
@@ -1718,7 +1718,7 @@ async def skip_item(
 async def process_single_item(file_bytes: bytes, label: str = "clothing") -> bytes:
     """Remove background - OpenCV for clean, rembg for complex backgrounds"""
     try:
-        from rembg import remove
+        from rembg import remove, new_session
         from PIL import Image
         from io import BytesIO
         import cv2
@@ -1771,6 +1771,7 @@ async def process_single_item(file_bytes: bytes, label: str = "clothing") -> byt
         else:
             print(f"Complex background (std={std_dev:.1f}, light={light_pixels:.1%}) → rembg")
             # COMPLEX BACKGROUND → rembg AI with alpha matting
+            session = new_session(model_name="birefnet-general")
             output_bytes = remove(
                 file_bytes,
                 alpha_matting=True,
@@ -1962,7 +1963,7 @@ async def prettify_item_v2(
             raise HTTPException(status_code=500, detail="Prettify failed")
         
         # Remove white background with rembg for transparent PNG
-        from rembg import remove
+        from rembg import remove, new_session
         from io import BytesIO
         
         img_buffer = BytesIO()
