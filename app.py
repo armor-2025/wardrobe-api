@@ -1716,9 +1716,9 @@ async def skip_item(
 
 # Helper functions
 async def process_single_item(file_bytes: bytes, label: str = "clothing") -> bytes:
-    """Remove background - OpenCV for clean, rembg for complex backgrounds"""
+    """Remove background - rembg for clean, SAM 3 for complex backgrounds"""
     try:
-        from rembg import remove, new_session
+        from rembg import remove
         from PIL import Image
         from io import BytesIO
         import cv2
@@ -1727,7 +1727,7 @@ async def process_single_item(file_bytes: bytes, label: str = "clothing") -> byt
         input_image = Image.open(BytesIO(file_bytes))
         img_np = np.array(input_image)
         
-        # Convert to BGR for OpenCV
+        # Convert to BGR for analysis
         if len(img_np.shape) == 3 and img_np.shape[2] == 4:
             img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGBA2BGR)
         elif len(img_np.shape) == 3 and img_np.shape[2] == 3:
@@ -1743,35 +1743,8 @@ async def process_single_item(file_bytes: bytes, label: str = "clothing") -> byt
         is_clean = (std_dev < 70 and light_pixels > 0.70)
         
         if is_clean:
-            print(f"Clean background (std={std_dev:.1f}, light={light_pixels:.1%}) → OpenCV")
-            # CLEAN BACKGROUND → OpenCV color masking
-            img_rgba = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2BGRA)
-            
-            # Mask for light backgrounds
-            lower_light = np.array([180, 180, 180, 0])
-            upper_light = np.array([255, 255, 255, 255])
-            mask = cv2.inRange(img_rgba, lower_light, upper_light)
-            
-            # Mask for beige/tan
-            lower_beige = np.array([170, 190, 200, 0])
-            upper_beige = np.array([255, 255, 255, 255])
-            mask_beige = cv2.inRange(img_rgba, lower_beige, upper_beige)
-            
-            # Combine and apply
-            mask_combined = cv2.bitwise_or(mask, mask_beige)
-            mask_inv = cv2.bitwise_not(mask_combined)
-            
-            # Smooth edges for cleaner cutout
-            mask_inv = cv2.GaussianBlur(mask_inv, (3, 3), 0)
-            
-            img_rgba[:, :, 3] = mask_inv
-            
-            # Convert back to PIL
-            output_image = Image.fromarray(cv2.cvtColor(img_rgba, cv2.COLOR_BGRA2RGBA))
-        else:
-            print(f"Complex background (std={std_dev:.1f}, light={light_pixels:.1%}) → rembg")
-            # COMPLEX BACKGROUND → rembg AI with alpha matting
-            session = new_session(model_name="birefnet-general")
+            print(f"Clean background (std={std_dev:.1f}, light={light_pixels:.1%}) → rembg u2net")
+            # CLEAN BACKGROUND → rembg default (u2net) with alpha matting
             output_bytes = remove(
                 file_bytes,
                 alpha_matting=True,
@@ -1779,6 +1752,30 @@ async def process_single_item(file_bytes: bytes, label: str = "clothing") -> byt
                 alpha_matting_background_threshold=10
             )
             output_image = Image.open(BytesIO(output_bytes))
+        else:
+            print(f"Complex background (std={std_dev:.1f}, light={light_pixels:.1%}) → SAM 3")
+            # COMPLEX BACKGROUND → SAM 3 for accurate segmentation
+            try:
+                sam3 = get_sam3_service()
+                seg_result = await sam3.segment_item(file_bytes, label)
+                
+                if seg_result["success"] and seg_result.get("result"):
+                    extracted = await extract_mask_from_result(file_bytes, seg_result["result"], category=label)
+                    if extracted:
+                        output_image = Image.open(BytesIO(extracted))
+                    else:
+                        raise Exception("SAM extraction failed")
+                else:
+                    raise Exception("SAM segmentation failed")
+            except Exception as e:
+                print(f"SAM 3 failed: {e}, falling back to rembg")
+                output_bytes = remove(
+                    file_bytes,
+                    alpha_matting=True,
+                    alpha_matting_foreground_threshold=240,
+                    alpha_matting_background_threshold=10
+                )
+                output_image = Image.open(BytesIO(output_bytes))
         
         if output_image.mode != 'RGBA':
             output_image = output_image.convert('RGBA')
