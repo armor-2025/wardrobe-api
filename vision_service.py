@@ -49,47 +49,75 @@ class VisionService:
     
     async def analyze_upload(self, image_source) -> Dict[str, Any]:
         """
-        Analyze uploaded image to detect single item vs outfit
-        Returns: {type: 'single_item'|'outfit', items: [...]}
+        MAIN METHOD - Analyze uploaded image in ONE Gemini call
+        Detects single item vs outfit AND extracts all item details
+        
+        Returns: {
+            "type": "single_item" | "outfit",
+            "items": [
+                {
+                    "label": "jacket",  # Simple word for SAM segmentation
+                    "description": "oversized denim trucker style",  # Fit/style details (NO color)
+                    "category": "outerwear",
+                    "color": "blue"
+                },
+                ...
+            ]
+        }
         """
         try:
             image_bytes, mime_type = self._image_to_bytes(image_source)
             image_part = Part.from_bytes(data=image_bytes, mime_type=mime_type)
             
-            prompt = """Analyze this fashion image. Determine if it shows:
-1. A SINGLE clothing item (product photo, flat lay of ONE item)
-2. An OUTFIT (multiple items worn together OR multiple items in photo)
+            prompt = """Analyze this image and determine if it shows:
+1. A SINGLE clothing item (just one piece of clothing, flat lay, on hanger, or person wearing one main item)
+2. A FULL OUTFIT (multiple distinct clothing items visible, person wearing complete outfit)
 
-ONLY include these categories:
-- Tops (t-shirts, shirts, blouses, sweaters, hoodies)
-- Bottoms (jeans, trousers, shorts, skirts)
-- Dresses/Jumpsuits
-- Outerwear (jackets, coats, blazers)
-- Shoes (sneakers, boots, heels, sandals)
-- Bags (handbags, backpacks)
-- Accessories (scarves, belts, hats, glasses, sunglasses)
-
-EXCLUDE - do NOT include:
-- Jewelry (necklaces, earrings, bracelets, rings, watches)
-- Socks
-- Underwear
-- Partially visible items
-
-Return JSON only:
+Return ONLY a JSON object:
 {
-    "type": "single_item" or "outfit",
-    "items": [
-        {
-            "label": "item type (e.g., 'dress', 'jeans', 'sneakers')",
-            "category": "tops/bottoms/dresses/outerwear/shoes/bags/accessories",
-            "color": "primary color",
-            "description": "brief description"
-        }
-    ]
+  "type": "single_item" or "outfit",
+  "items": [
+    {
+      "label": "simple item name for AI segmentation (e.g., 'jacket', 't-shirt', 'jeans', 'sneakers', 'dress')",
+      "description": "fit and style details WITHOUT color (e.g., 'oversized denim trucker', 'graphic print crew neck', 'wide-leg drawstring', 'low-top suede')",
+      "category": "tops|bottoms|outerwear|footwear|accessories|dresses|bags",
+      "color": "primary color (black, white, blue, navy, red, green, pink, brown, grey, beige, cream, burgundy, etc.)"
+    }
+  ]
 }
 
-For single_item: return 1 item in array
-For outfit: return only MAIN visible clothing items"""
+CRITICAL RULES:
+- "label" must be ONE simple word only for AI segmentation: shirt, pants, jacket, dress, skirt, shorts, coat, sweater, shoes, boots, hat, bag, scarf, belt, glasses
+- "description" MUST include the item type (e.g. "denim jacket", "graphic t-shirt", "wide leg jeans") plus style details
+- "description" rules by category:
+  * TOPS: Include item type. Only add "oversized" or "cropped" if clearly visible. Add "longsleeve" if longsleeve. Do NOT say "regular fit" for tops.
+  * BOTTOMS: Include item type + fit (wide leg, slim, skinny, straight leg, tapered). E.g. "wide leg jeans", "slim chinos"
+  * OUTERWEAR: Include item type + style. E.g. "denim trucker jacket", "oversized wool coat", "puffer jacket"
+  * DRESSES: Include length + style. Add "longsleeve" if longsleeve. E.g. "midi wrap dress", "longsleeve maxi dress"
+  * FOOTWEAR: Include style. E.g. "low-top sneakers", "leather boots", "suede loafers"
+  * ACCESSORIES: Include style. E.g. "wool beanie", "leather belt", "silk scarf", "aviator sunglasses"
+- "color" is a SEPARATE field - do NOT include color in description
+- For single_item: items array has exactly 1 item
+- For outfit: items array has all visible clothing items (typically 2-5 items)
+- Category MUST be one of: tops, bottoms, outerwear, footwear, accessories, dresses, bags
+
+INCLUDE: Bags, scarves, belts, hats, glasses, sunglasses if visible
+EXCLUDE: Jewelry (necklaces, earrings, bracelets, rings, watches), socks, underwear, partially visible items
+
+EXAMPLES:
+Good: {"label": "jacket", "description": "denim trucker jacket", "color": "blue", "category": "outerwear"}
+Bad: {"label": "jacket", "description": "classic fit denim", "color": "blue", "category": "outerwear"}
+
+Good: {"label": "pants", "description": "wide leg drawstring trousers", "color": "black", "category": "bottoms"}
+Bad: {"label": "pants", "description": "wide leg drawstring", "color": "black", "category": "bottoms"}
+
+Good: {"label": "shirt", "description": "graphic print t-shirt", "color": "white", "category": "tops"}
+Bad: {"label": "shirt", "description": "crew neck graphic print", "color": "white", "category": "tops"}
+
+Good: {"label": "shirt", "description": "longsleeve oxford shirt", "color": "blue", "category": "tops"}
+Good: {"label": "dress", "description": "longsleeve midi wrap dress", "color": "green", "category": "dresses"}
+
+Return ONLY valid JSON, no other text."""
 
             response = client.models.generate_content(
                 model="gemini-2.0-flash",
@@ -111,42 +139,21 @@ For outfit: return only MAIN visible clothing items"""
             print(f"Upload analysis error: {e}")
             return {"type": "single_item", "items": []}
     
-    async def analyze_garment(self, image_source) -> Dict[str, Any]:
-        """Analyze a single garment for detailed attributes"""
-        try:
-            image_bytes, mime_type = self._image_to_bytes(image_source)
-            image_part = Part.from_bytes(data=image_bytes, mime_type=mime_type)
-            
-            prompt = """Analyze this clothing item. Return JSON only:
-{
-    "category": "tops/bottoms/dresses/outerwear/shoes/accessories",
-    "subcategory": "specific type (e.g., t-shirt, jeans, sneakers)",
-    "color": "primary color",
-    "color_hex": "#XXXXXX",
-    "pattern": "solid/striped/floral/etc",
-    "material": "cotton/denim/leather/etc",
-    "style": "casual/formal/athletic/etc",
-    "description": "brief description for search"
-}"""
-
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=[prompt, image_part]
-            )
-            
-            text = response.text.strip()
-            if text.startswith('```json'):
-                text = text[7:]
-            if text.startswith('```'):
-                text = text[3:]
-            if text.endswith('```'):
-                text = text[:-3]
-            
-            return json.loads(text.strip())
-            
-        except Exception as e:
-            print(f"Garment analysis error: {e}")
-            return {}
+    async def analyze_clothing(self, image_source) -> Dict[str, Any]:
+        """
+        Legacy method - Analyze a single clothing item
+        Returns: {category, description, color, label}
+        """
+        result = await self.analyze_upload(image_source)
+        if result["items"]:
+            item = result["items"][0]
+            return {
+                "category": item.get("category", "unknown"),
+                "description": item.get("description", "unknown"),
+                "color": item.get("color", "unknown"),
+                "label": item.get("label", "clothing")
+            }
+        return {"category": "unknown", "description": "unknown", "color": "unknown", "label": "clothing"}
 
 
 _vision_service = None
