@@ -4,6 +4,10 @@ Uses actual computer vision to extract items from outfit photos
 """
 from PIL import Image, ImageDraw
 from rembg import remove
+from sam3_service import get_sam3_service
+import asyncio
+import cv2
+import numpy as np
 import io
 import base64
 import numpy as np
@@ -203,28 +207,73 @@ class RealItemExtractor:
         )
     
     
-    def _remove_background(self, image: Image.Image) -> Image.Image:
+    def _remove_background(self, image: Image.Image, label: str = "clothing") -> Image.Image:
         """
-        Remove background using rembg
-        Returns image with transparent background
+        Remove background - detects complexity and uses best method
+        Clean background → rembg (fast, free)
+        Complex background → SAM 3 (accurate, paid)
         """
+        # Convert PIL to numpy for analysis
+        img_np = np.array(image)
+        if len(img_np.shape) == 3 and img_np.shape[2] == 4:
+            img_np = cv2.cvtColor(img_np, cv2.COLOR_RGBA2BGR)
+        elif len(img_np.shape) == 3 and img_np.shape[2] == 3:
+            img_np = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+        
+        # Analyze background complexity
+        gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
+        std_dev = np.std(gray)
+        light_pixels = np.sum(gray > 180) / gray.size
+        
+        is_clean = (std_dev < 70 and light_pixels > 0.70)
+        
         # Convert PIL to bytes
         img_byte_arr = io.BytesIO()
         image.save(img_byte_arr, format='PNG')
         img_byte_arr = img_byte_arr.getvalue()
         
-        # Remove background
-        # Remove background with alpha matting for clean edges
-        output = remove(
-            img_byte_arr,
-            model_name="isnet-general-use",
-            alpha_matting=True,
-            alpha_matting_foreground_threshold=240,
-            alpha_matting_background_threshold=10
-        )
-        
-        # Convert back to PIL
-        return Image.open(io.BytesIO(output))
+        if is_clean:
+            print(f"Clean background (std={std_dev:.1f}, light={light_pixels:.1%}) → rembg")
+            # CLEAN BACKGROUND → rembg with alpha matting
+            output = remove(
+                img_byte_arr,
+                model_name="isnet-general-use",
+                alpha_matting=True,
+                alpha_matting_foreground_threshold=240,
+                alpha_matting_background_threshold=10
+            )
+            return Image.open(io.BytesIO(output))
+        else:
+            print(f"Complex background (std={std_dev:.1f}, light={light_pixels:.1%}) → SAM 3")
+            # COMPLEX BACKGROUND → SAM 3 for accurate segmentation
+            try:
+                sam3 = get_sam3_service()
+                loop = asyncio.new_event_loop()
+                seg_result = loop.run_until_complete(sam3.segment_item(img_byte_arr, label))
+                loop.close()
+                
+                if seg_result["success"] and seg_result.get("result"):
+                    from app import extract_mask_from_result
+                    loop = asyncio.new_event_loop()
+                    extracted = loop.run_until_complete(
+                        extract_mask_from_result(img_byte_arr, seg_result["result"], category=label)
+                    )
+                    loop.close()
+                    
+                    if extracted:
+                        return Image.open(io.BytesIO(extracted))
+            except Exception as e:
+                print(f"SAM 3 failed: {e}, falling back to rembg")
+            
+            # Fallback to rembg
+            output = remove(
+                img_byte_arr,
+                model_name="isnet-general-use",
+                alpha_matting=True,
+                alpha_matting_foreground_threshold=240,
+                alpha_matting_background_threshold=10
+            )
+            return Image.open(io.BytesIO(output))
     
     
     def _extract_attributes(self, image: Image.Image) -> Dict[str, str]:
