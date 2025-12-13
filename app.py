@@ -1715,24 +1715,69 @@ async def skip_item(
 
 
 # Helper functions
-async def process_single_item(file_bytes: bytes) -> bytes:
-    """Remove background from single item"""
+async def process_single_item(file_bytes: bytes, label: str = "clothing") -> bytes:
+    """Remove background - OpenCV for clean, rembg for complex backgrounds"""
     try:
-        from rembg import remove, new_session
+        from rembg import remove
         from PIL import Image
         from io import BytesIO
+        import cv2
+        import numpy as np
         
         input_image = Image.open(BytesIO(file_bytes))
-        session = new_session(model_name='isnet-general-use')
+        img_np = np.array(input_image)
         
-        output_image = remove(
-            input_image,
-            session=session,
-            alpha_matting=True,
-            alpha_matting_foreground_threshold=270,
-            alpha_matting_background_threshold=20,
-            alpha_matting_erode_size=15
-        )
+        # Convert to BGR for OpenCV
+        if len(img_np.shape) == 3 and img_np.shape[2] == 4:
+            img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGBA2BGR)
+        elif len(img_np.shape) == 3 and img_np.shape[2] == 3:
+            img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+        else:
+            img_bgr = img_np
+        
+        # Analyze background complexity
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        std_dev = np.std(gray)
+        light_pixels = np.sum(gray > 180) / gray.size
+        
+        is_clean = (std_dev < 70 and light_pixels > 0.70)
+        
+        if is_clean:
+            print(f"Clean background (std={std_dev:.1f}, light={light_pixels:.1%}) → OpenCV")
+            # CLEAN BACKGROUND → OpenCV color masking
+            img_rgba = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2BGRA)
+            
+            # Mask for light backgrounds
+            lower_light = np.array([180, 180, 180, 0])
+            upper_light = np.array([255, 255, 255, 255])
+            mask = cv2.inRange(img_rgba, lower_light, upper_light)
+            
+            # Mask for beige/tan
+            lower_beige = np.array([170, 190, 200, 0])
+            upper_beige = np.array([255, 255, 255, 255])
+            mask_beige = cv2.inRange(img_rgba, lower_beige, upper_beige)
+            
+            # Combine and apply
+            mask_combined = cv2.bitwise_or(mask, mask_beige)
+            mask_inv = cv2.bitwise_not(mask_combined)
+            
+            # Smooth edges for cleaner cutout
+            mask_inv = cv2.GaussianBlur(mask_inv, (3, 3), 0)
+            
+            img_rgba[:, :, 3] = mask_inv
+            
+            # Convert back to PIL
+            output_image = Image.fromarray(cv2.cvtColor(img_rgba, cv2.COLOR_BGRA2RGBA))
+        else:
+            print(f"Complex background (std={std_dev:.1f}, light={light_pixels:.1%}) → rembg")
+            # COMPLEX BACKGROUND → rembg AI with alpha matting
+            output_bytes = remove(
+                file_bytes,
+                alpha_matting=True,
+                alpha_matting_foreground_threshold=240,
+                alpha_matting_background_threshold=10
+            )
+            output_image = Image.open(BytesIO(output_bytes))
         
         if output_image.mode != 'RGBA':
             output_image = output_image.convert('RGBA')
