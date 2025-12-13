@@ -2108,6 +2108,10 @@ CRITICAL REQUIREMENTS:
 def reset_database():
     """Drop and recreate all tables - USE WITH CAUTION"""
     from database import Base, engine
-    Base.metadata.drop_all(bind=engine)
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+        conn.commit()
     Base.metadata.create_all(bind=engine)
     return {"message": "Database reset successfully"}
