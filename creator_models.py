@@ -12,7 +12,7 @@ class CreatorPost(Base):
     __tablename__ = "creator_posts"
     
     id = Column(String, primary_key=True)
-    creator_id = Column(String, ForeignKey('users.id'), nullable=False)
+    creator_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     image_url = Column(String, nullable=False)
     video_url = Column(String, nullable=True)
     is_video = Column(Boolean, default=False)
