@@ -60,13 +60,28 @@ class VisionService:
 1. A SINGLE clothing item (product photo, flat lay of ONE item)
 2. An OUTFIT (multiple items worn together OR multiple items in photo)
 
+ONLY include these categories:
+- Tops (t-shirts, shirts, blouses, sweaters, hoodies)
+- Bottoms (jeans, trousers, shorts, skirts)
+- Dresses/Jumpsuits
+- Outerwear (jackets, coats, blazers)
+- Shoes (sneakers, boots, heels, sandals)
+- Bags (handbags, backpacks)
+- Accessories (scarves, belts, hats, glasses, sunglasses)
+
+EXCLUDE - do NOT include:
+- Jewelry (necklaces, earrings, bracelets, rings, watches)
+- Socks
+- Underwear
+- Partially visible items
+
 Return JSON only:
 {
     "type": "single_item" or "outfit",
     "items": [
         {
             "label": "item type (e.g., 'dress', 'jeans', 'sneakers')",
-            "category": "tops/bottoms/dresses/outerwear/shoes/accessories",
+            "category": "tops/bottoms/dresses/outerwear/shoes/bags/accessories",
             "color": "primary color",
             "description": "brief description"
         }
@@ -74,7 +89,7 @@ Return JSON only:
 }
 
 For single_item: return 1 item in array
-For outfit: return all visible items in array"""
+For outfit: return only MAIN visible clothing items"""
 
             response = client.models.generate_content(
                 model="gemini-2.0-flash",
