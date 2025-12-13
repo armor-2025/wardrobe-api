@@ -1482,7 +1482,7 @@ async def upload_wardrobe_smart(
     
     # Analyze with Gemini (ONE call - detects type + all items)
     vision = get_vision_service()
-    analysis = vision.analyze_upload(str(temp_path))
+    analysis = await vision.analyze_upload(str(temp_path))
     
     print(f"Gemini analysis: {analysis}")
     
