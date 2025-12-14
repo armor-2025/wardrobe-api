@@ -1444,6 +1444,7 @@ async def serve_wardrobe_image(filename: str):
 
 
 # ============ OUTFIT QUEUE SYSTEM ============
+from avatar_endpoint import upload_to_firebase, init_firebase
 from outfit_queue import create_queue, get_queue, delete_queue, QueuedItem, UploadQueue
 from sam3_service import get_sam3_service
 
