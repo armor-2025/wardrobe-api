@@ -44,6 +44,7 @@ class VisionService:
             img = image_source  # Assume PIL Image
         
         buffer = BytesIO()
+        if img.mode == "RGBA": img = img.convert("RGB")
         img.save(buffer, format='JPEG')
         return buffer.getvalue(), "image/jpeg"
     
