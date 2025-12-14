@@ -562,8 +562,8 @@ async def upload_wardrobe_file(
         shutil.move(temp_path, final_path)
     
     # Create public URL (OUTSIDE the try/except)
-    local_url = f"http://127.0.0.1:8012/images/wardrobe/{unique_filename}"
-    image_url = f"https://yow-api.onrender.com/images/wardrobe/{unique_filename}"
+    local_url = f"http://127.0.0.1:8012/uploads/wardrobe/{unique_filename}"
+    image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
     
     # AI analyze the image
     vision = get_vision_service()
@@ -1428,7 +1428,7 @@ app.include_router(vto_router)
 # Custom image serving with CORS headers
 from fastapi.responses import FileResponse
 
-@app.get("/images/wardrobe/{filename}")
+@app.get("/uploads/wardrobe/{filename}")
 async def serve_wardrobe_image(filename: str):
     file_path = Path(f"uploads/wardrobe/{filename}")
     if not file_path.exists():
@@ -1506,7 +1506,7 @@ async def upload_wardrobe_smart(
         with open(final_path, "wb") as f:
             f.write(processed_bytes)
         
-        image_url = f"https://yow-api.onrender.com/images/wardrobe/{unique_filename}"
+        image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
         item_info = items[0]
         
         return {
@@ -1567,7 +1567,7 @@ async def upload_wardrobe_smart(
     with open(final_path, "wb") as f:
         f.write(first_item.image_bytes)
     
-    image_url = f"https://yow-api.onrender.com/images/wardrobe/{unique_filename}"
+    image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
     
     return {
         "type": "outfit",
@@ -1647,7 +1647,7 @@ async def save_and_next_item(
     with open(final_path, "wb") as f:
         f.write(next_queued.image_bytes)
     
-    next_image_url = f"https://yow-api.onrender.com/images/wardrobe/{unique_filename}"
+    next_image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
     
     return {
         "saved_item_id": item.id,
@@ -1698,7 +1698,7 @@ async def skip_item(
     with open(final_path, "wb") as f:
         f.write(next_queued.image_bytes)
     
-    next_image_url = f"https://yow-api.onrender.com/images/wardrobe/{unique_filename}"
+    next_image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
     
     return {
         "has_next": True,
