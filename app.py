@@ -2204,3 +2204,23 @@ def delete_wardrobe_item(
     db.delete(item)
     db.commit()
     return {"message": f"Deleted item {item_id}"}
+
+@app.get("/user/profile")
+def get_user_profile(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Get current user's profile including avatar"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    return {
+        "id": user.id,
+        "email": user.email,
+        "avatar_url": user.avatar_url
+    }
