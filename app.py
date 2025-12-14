@@ -2159,3 +2159,48 @@ def reset_database():
         conn.commit()
     Base.metadata.create_all(bind=engine)
     return {"message": "Database reset successfully"}
+
+@app.delete("/wardrobe/items/all")
+def delete_all_wardrobe_items(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Delete all wardrobe items for current user"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    deleted = db.query(WardrobeItem).filter(WardrobeItem.user_id == user.id).delete()
+    db.commit()
+    return {"message": f"Deleted {deleted} items"}
+
+@app.delete("/wardrobe/items/{item_id}")
+def delete_wardrobe_item(
+    item_id: int,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Delete a single wardrobe item"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    item = db.query(WardrobeItem).filter(
+        WardrobeItem.id == item_id,
+        WardrobeItem.user_id == user.id
+    ).first()
+    
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    db.delete(item)
+    db.commit()
+    return {"message": f"Deleted item {item_id}"}
