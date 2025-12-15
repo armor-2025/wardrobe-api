@@ -2222,7 +2222,9 @@ def get_user_profile(
     return {
         "id": user.id,
         "email": user.email,
-        "avatar_url": user.avatar_url
+        "avatar_url": user.avatar_url,
+        "original_photo_url": user.original_photo_url,
+        "body_type": user.body_type
     }
 
 @app.post("/auth/reset-password")
