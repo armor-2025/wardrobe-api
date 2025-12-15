@@ -2242,3 +2242,17 @@ def reset_password(
     user.password_hash = hash_password(new_password)
     db.commit()
     return {"message": "Password reset successfully"}
+
+@app.post("/debug/set-original-photo")
+def set_original_photo(photo_url: str, authorization: str = Header(None), db: Session = Depends(get_db)):
+    """Manually set original_photo_url for existing user"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    user.original_photo_url = photo_url
+    db.commit()
+    return {"message": "Original photo URL set", "original_photo_url": photo_url}
