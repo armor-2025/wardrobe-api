@@ -4,7 +4,7 @@ Uses the EXACT prompt from vto_system_final.py
 Accepts multipart file upload with body_type and height parameters
 """
 
-from fastapi import APIRouter, HTTPException, File, UploadFile, Form
+from fastapi import APIRouter, HTTPException, File, UploadFile, Form, Header, Depends
 from pydantic import BaseModel
 from typing import Optional
 import base64
@@ -17,7 +17,11 @@ from PIL import Image
 from rembg import remove
 import firebase_admin
 from firebase_admin import credentials, storage
-from datetime import datetime
+from fastapi import Header
+from sqlalchemy.orm import Session
+from database import get_db, User
+from app import get_current_user
+from datetime import import datetime
 import uuid
 
 router = APIRouter(prefix="/avatar", tags=["Avatar"])
@@ -112,7 +116,9 @@ class AvatarResponse(BaseModel):
 async def generate_avatar(
     photo: UploadFile = File(...),
     body_type: str = Form(default="average"),
-    height: str = Form(default="average")
+    height: str = Form(default="average"),
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
 ):
     """
     Generate activewear avatar from uploaded photo.
@@ -126,8 +132,14 @@ async def generate_avatar(
         # Detect original format (keep original as-is)
         ext, mime_type = detect_image_format(photo_bytes)
         
-        # Generate unique user ID
-        user_id = str(uuid.uuid4())[:8]
+        # Get real user from auth token
+        if not authorization or not authorization.startswith('Bearer '):
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        token = authorization.split(' ')[1]
+        user = get_current_user(db, token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        user_id = str(user.id)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Upload original photo AS-IS (no conversion)
@@ -218,6 +230,10 @@ Generate now."""
             # Upload avatar as PNG
             avatar_path = f"users/{user_id}/avatar_{timestamp}.png"
             avatar_url = upload_to_firebase(avatar_png, avatar_path, content_type='image/png')
+            
+            # Save avatar URL to user profile
+            user.avatar_url = avatar_url
+            db.commit()
             
             return AvatarResponse(
                 success=True,
