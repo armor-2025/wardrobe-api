@@ -183,6 +183,7 @@ POSE:
 STRICT EXCLUSIONS - DO NOT ADD:
 - NO jewelry (no necklaces, earrings, bracelets, rings, watches)
 - NO hair accessories
+- NO logos, NO branding, NO text on clothing
 - NOTHING except the activewear described
 
 Full body visible from head to bare feet.
