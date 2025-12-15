@@ -2224,3 +2224,19 @@ def get_user_profile(
         "email": user.email,
         "avatar_url": user.avatar_url
     }
+
+@app.post("/auth/reset-password")
+def reset_password(
+    email: str,
+    new_password: str,
+    db: Session = Depends(get_db)
+):
+    """Reset password for testing - remove in production"""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    from auth import get_password_hash
+    user.hashed_password = get_password_hash(new_password)
+    db.commit()
+    return {"message": "Password reset successfully"}
