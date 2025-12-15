@@ -2338,3 +2338,14 @@ async def generate_vto_from_wardrobe(
             "error": result.error or "VTO generation failed"
         }
 
+
+@app.post("/vto/debug-request")
+async def debug_vto_request(request: Request):
+    """Debug endpoint to see what FlutterFlow is sending"""
+    body = await request.body()
+    try:
+        json_body = await request.json()
+        return {"raw_body": body.decode(), "parsed": json_body}
+    except:
+        return {"raw_body": body.decode(), "parsed": None}
+
