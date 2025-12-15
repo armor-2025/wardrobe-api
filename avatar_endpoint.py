@@ -234,6 +234,7 @@ Generate now."""
             
             # Save avatar URL to user profile
             user.avatar_url = avatar_url
+            user.original_photo_url = original_url
             db.commit()
             
             return AvatarResponse(
