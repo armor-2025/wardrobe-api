@@ -21,7 +21,7 @@ from fastapi import Header
 from sqlalchemy.orm import Session
 from database import get_db, User
 from app import get_current_user
-from datetime import import datetime
+from datetime import datetime
 import uuid
 
 router = APIRouter(prefix="/avatar", tags=["Avatar"])
