@@ -2236,7 +2236,7 @@ def reset_password(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    from auth import get_password_hash
-    user.hashed_password = get_password_hash(new_password)
+    from auth_service import hash_password
+    user.hashed_password = hash_password(new_password)
     db.commit()
     return {"message": "Password reset successfully"}
