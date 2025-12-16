@@ -2590,3 +2590,38 @@ async def get_vto_status(
         "error": job.error
     }
 
+
+@app.post("/wardrobe/save-direct")
+async def save_wardrobe_direct(
+    image_url: str,
+    category: str,
+    color: str,
+    description: str,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Save a wardrobe item directly"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    item = WardrobeItem(
+        user_id=user.id,
+        image_url=image_url,
+        category=category,
+        color=color,
+        fabric=description,
+        pattern='',
+        style_tags='[]',
+        user_edited=False
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    
+    return {"id": item.id, "image_url": item.image_url}
+
