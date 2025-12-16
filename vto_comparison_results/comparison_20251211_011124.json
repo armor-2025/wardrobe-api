@@ -1,0 +1,36 @@
+{
+  "timestamp": "2025-12-11T01:10:58.405850",
+  "inputs": {
+    "person_image": "/Users/gavinwalker/wardrobe/backend/api/test_plus_signup_base.png",
+    "garment_image": "/Users/gavinwalker/wardrobe/backend/api/test_yesterday_code_4items.png"
+  },
+  "results": {
+    "vertex_vto": {
+      "method": "vertex_vto_api",
+      "model": "virtual-try-on-preview-08-04",
+      "success": true,
+      "time_seconds": 25.478705883026123,
+      "output_path": "vto_comparison_results/vertex_vto_20251211_011123.png",
+      "error": null,
+      "notes": [],
+      "num_variations": 1
+    },
+    "gemini_flash": {
+      "method": "gemini_flash_image",
+      "model": "gemini-2.5-flash-preview-05-20",
+      "success": false,
+      "time_seconds": 0.6008150577545166,
+      "output_path": null,
+      "error": "Part.from_text() takes 1 positional argument but 2 were given",
+      "notes": []
+    },
+    "gemini_lite": {
+      "method": "gemini_lite_analysis",
+      "model": "gemini-2.0-flash-lite",
+      "success": false,
+      "time_seconds": 0.015038013458251953,
+      "analysis": null,
+      "error": "Part.from_text() takes 1 positional argument but 2 were given"
+    }
+  }
+}

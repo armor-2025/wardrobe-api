@@ -158,3 +158,16 @@ from interaction_models import UserInteraction, UserStyleProfile, ProductAnalyti
 
 # Import canvas models
 from canvas_models import Canvas, CanvasLike, OutfitSuggestion, CanvasTemplate
+
+class VTOJob(Base):
+    __tablename__ = "vto_jobs"
+    
+    id = Column(String, primary_key=True)  # UUID
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String, default="pending")  # pending, processing, complete, failed
+    item_ids = Column(String, nullable=False)  # comma-separated IDs
+    vto_url = Column(String, nullable=True)
+    error = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+

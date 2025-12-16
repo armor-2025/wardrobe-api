@@ -2444,3 +2444,159 @@ async def generate_vto_simple(
         
         return {"success": False, "error": result.error or "VTO generation failed"}
 
+
+import uuid
+import asyncio
+from database import VTOJob
+
+# Background task to process VTO
+async def process_vto_job(job_id: str, user_id: int, item_ids: str):
+    """Background task to generate VTO"""
+    import httpx
+    import base64
+    from vto_gemini3_endpoint import generate_vto, VTORequest, GarmentItem
+    from database import SessionLocal
+    
+    db = SessionLocal()
+    try:
+        job = db.query(VTOJob).filter(VTOJob.id == job_id).first()
+        if not job:
+            return
+        
+        job.status = "processing"
+        db.commit()
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or not user.original_photo_url:
+            job.status = "failed"
+            job.error = "User or photo not found"
+            db.commit()
+            return
+        
+        # Parse item IDs
+        ids = [int(id.strip()) for id in item_ids.split(",") if id.strip()]
+        items = db.query(WardrobeItem).filter(
+            WardrobeItem.id.in_(ids),
+            WardrobeItem.user_id == user_id
+        ).all()
+        
+        if not items:
+            job.status = "failed"
+            job.error = "No items found"
+            db.commit()
+            return
+        
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            # Fetch user's original photo
+            resp = await client.get(user.original_photo_url)
+            model_base64 = base64.b64encode(resp.content).decode('utf-8')
+            
+            # Fetch garment images
+            garments = []
+            for item in items:
+                resp = await client.get(item.image_url)
+                description = f"{item.color or ''} {item.fabric or ''}".strip() or item.category
+                garments.append(GarmentItem(
+                    image_base64=base64.b64encode(resp.content).decode('utf-8'),
+                    category=item.category or "top",
+                    description=description
+                ))
+            
+            # Call VTO
+            vto_request = VTORequest(
+                model_image_base64=model_base64,
+                garments=garments
+            )
+            result = await generate_vto(vto_request)
+            
+            if result.success and result.image_base64:
+                from avatar_endpoint import upload_to_firebase
+                from datetime import datetime
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                vto_path = f"users/{user_id}/vto_{timestamp}.png"
+                image_bytes = base64.b64decode(result.image_base64)
+                vto_url = upload_to_firebase(image_bytes, vto_path, content_type='image/png')
+                
+                job.status = "complete"
+                job.vto_url = vto_url
+                job.completed_at = datetime.utcnow()
+            else:
+                job.status = "failed"
+                job.error = result.error or "VTO generation failed"
+            
+            db.commit()
+    except Exception as e:
+        job = db.query(VTOJob).filter(VTOJob.id == job_id).first()
+        if job:
+            job.status = "failed"
+            job.error = str(e)
+            db.commit()
+    finally:
+        db.close()
+
+
+@app.post("/vto/submit")
+async def submit_vto_job(
+    item_ids: str = Form(...),
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Submit VTO job - returns immediately with job_id"""
+    from datetime import datetime
+    
+    # Auth
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # Clean item_ids
+    clean_ids = ",".join([id.strip() for id in item_ids.split(",") if id.strip()])
+    
+    # Create job
+    job_id = str(uuid.uuid4())
+    job = VTOJob(
+        id=job_id,
+        user_id=user.id,
+        status="pending",
+        item_ids=clean_ids,
+        created_at=datetime.utcnow()
+    )
+    db.add(job)
+    db.commit()
+    
+    # Start background task
+    asyncio.create_task(process_vto_job(job_id, user.id, clean_ids))
+    
+    return {"job_id": job_id, "status": "pending"}
+
+
+@app.get("/vto/status/{job_id}")
+async def get_vto_status(
+    job_id: str,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Check VTO job status"""
+    # Auth
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    job = db.query(VTOJob).filter(VTOJob.id == job_id, VTOJob.user_id == user.id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    return {
+        "job_id": job.id,
+        "status": job.status,
+        "vto_url": job.vto_url,
+        "error": job.error
+    }
+

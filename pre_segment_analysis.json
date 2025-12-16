@@ -1,0 +1,6 @@
+{
+  "sweater": "```json\n{\"color_hex\":\"#800020, #ADD8E6\",\"material_finish\":\"knit, texture\",\"silhouette_fit\":\"fitted\",\"length_anchor\":\"Waist-length\",\"sleeve_length\":\"At wrist showing full hand\",\"pattern_detail\":\"stripes\",\"closure_hardware\":\"buttons\",\"edge_detail\":\"ribbed cuff\"}\n```",
+  "trousers": "```json\n{\"color_hex\":\"#595959\",\"material_finish\":\"wool\",\"silhouette_fit\":\"flared\",\"length_anchor\":\"Pooling at floor\",\"pattern_detail\":\"solid\",\"closure_hardware\":\"zip\",\"edge_detail\":\"flared\"}\n```",
+  "boots": "```json\n{\"color_hex\":\"#000000\",\"material_finish\":\"leather\",\"length_anchor\":\"Ankle-height\",\"pattern_detail\":\"solid\",\"closure_hardware\":\"zip\",\"edge_detail\":\"heel height\"}\n```",
+  "jacket": "```json\n{\"color_hex\":\"#F5F5DC\",\"material_finish\":\"quilted\",\"silhouette_fit\":\"structured\",\"length_anchor\":\"Just below hip-line\",\"sleeve_length\":\"At wrist showing full hand\",\"collar_style\":\"no collar\",\"pattern_detail\":\"quilted lines\",\"closure_hardware\":\"buttons\"}\n```"
+}

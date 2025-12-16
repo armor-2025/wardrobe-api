@@ -14,55 +14,70 @@ import google.generativeai as genai
 from insightface.app import FaceAnalysis
 from insightface.model_zoo import get_model
 
-os.environ['GEMINI_API_KEY'] = 'YOUR_KEY_HERE'
+os.environ['GEMINI_API_KEY'] = 'AIzaSyD1xXl-VJPuMVAs8KWEEpRt0q0dV_BAt78'
 genai.configure(api_key=os.environ['GEMINI_API_KEY'])
 
 
 class GarmentAnalyzer:
-    def __init__(self):
-        self.model = genai.GenerativeModel('gemini-2.5-flash-image')
+    """Analyzes ALL garments in ONE Gemini call for efficiency"""
     
-    def analyze_garment(self, image_path):
-        print(f"   🔍 Analyzing {os.path.basename(image_path)}...")
-        image = Image.open(image_path)
-        
-        prompt = """Analyze this clothing and provide a professional fashion description.
-
-Include: item type, style, color, material, key features (sleeves, neckline, cut, length).
-Use professional terminology. Be specific about colors.
-
-Examples:
-- "Navy blue double-breasted velvet blazer with black straight-leg trousers"
-- "Burgundy textured mini dress with round neckline and long bell sleeves"
-- "Black aviator sunglasses with gold frames"
-
-Return ONLY the description, one line."""
-        
-        response = self.model.generate_content([prompt, image])
-        description = response.text.strip()
-        
-        cat_prompt = """Category? Return ONE: dress, top, bottom, outerwear, shoes, accessory"""
-        cat_response = self.model.generate_content([cat_prompt, image])
-        category = cat_response.text.strip().lower()
-        
-        print(f"   ✅ {category}: {description}")
-        return {"description": description, "category": category}
+    def __init__(self):
+        self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
     
     def analyze_outfit(self, garment_images):
-        print("\n🔍 Step 2: Analyzing Garments with AI")
+        """Analyze all garments in a SINGLE API call"""
+        print("\n🔍 Step 2: Analyzing ALL Garments (1 API call)")
         print("-" * 80)
         
-        garments = [self.analyze_garment(img) for img in garment_images]
+        # Load all images
+        images = [Image.open(img) if isinstance(img, str) else img for img in garment_images]
         
+        prompt = f"""Analyze these {len(images)} clothing items. For EACH item, provide:
+- Category (one of: dress, top, bottom, outerwear, shoes, accessory)
+- Professional fashion description with color, style, material, features
+
+Return in this EXACT format (one item per line):
+ITEM 1: [category] - [description]
+ITEM 2: [category] - [description]
+...
+
+Example:
+ITEM 1: outerwear - Classic indigo denim trucker jacket with button front closure
+ITEM 2: top - White cotton graphic t-shirt with blue and red print
+ITEM 3: bottom - Black wide-leg drawstring trousers in fluid fabric
+ITEM 4: shoes - Burgundy suede Adidas sneakers with gum sole"""
+        
+        response = self.model.generate_content([prompt] + images)
+        text = response.text.strip()
+        print(f"   Raw response: {text[:200]}...")
+        
+        # Parse response
+        garments = []
         outfit_parts = []
-        for g in garments:
-            cat = g['category']
-            if cat == 'outerwear': outfit_parts.append(f"- Outer layer: {g['description']}")
-            elif cat == 'top': outfit_parts.append(f"- Top: {g['description']}")
-            elif cat == 'dress': outfit_parts.append(f"- Dress: {g['description']}")
-            elif cat == 'bottom': outfit_parts.append(f"- Bottoms: {g['description']}")
-            elif cat == 'shoes': outfit_parts.append(f"- Footwear: {g['description']}")
-            elif cat == 'accessory': outfit_parts.append(f"- Accessory: {g['description']}")
+        
+        for line in text.split("\n"):
+            if line.strip().startswith("ITEM"):
+                try:
+                    # Parse "ITEM N: category - description"
+                    parts = line.split(":", 1)[1].strip()  # Get after "ITEM N:"
+                    cat_desc = parts.split(" - ", 1)
+                    category = cat_desc[0].strip().lower()
+                    description = cat_desc[1].strip() if len(cat_desc) > 1 else parts
+                    
+                    garments.append({"category": category, "description": description})
+                    
+                    # Format for outfit description
+                    if category == 'outerwear': outfit_parts.append(f"- Outer layer: {description}")
+                    elif category == 'top': outfit_parts.append(f"- Top: {description}")
+                    elif category == 'dress': outfit_parts.append(f"- Dress: {description}")
+                    elif category == 'bottom': outfit_parts.append(f"- Bottoms: {description}")
+                    elif category == 'shoes': outfit_parts.append(f"- Footwear: {description}")
+                    elif category == 'accessory': outfit_parts.append(f"- Accessory: {description}")
+                    else: outfit_parts.append(f"- {category.title()}: {description}")
+                    
+                    print(f"   ✅ {category}: {description}")
+                except:
+                    pass
         
         outfit_description = "\n".join(outfit_parts)
         print(f"\n📝 Complete outfit description:")
