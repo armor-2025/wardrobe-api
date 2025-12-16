@@ -2583,12 +2583,15 @@ async def get_vto_status(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    return {
+    response = {
         "job_id": job.id,
-        "status": job.status,
-        "vto_url": job.vto_url,
-        "error": job.error
+        "status": job.status
     }
+    if job.vto_url:
+        response["vto_url"] = job.vto_url
+    if job.error:
+        response["error"] = job.error
+    return response
 
 
 @app.post("/wardrobe/save-direct")
