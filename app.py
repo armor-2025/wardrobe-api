@@ -2349,3 +2349,18 @@ async def debug_vto_request(request: Request):
     except:
         return {"raw_body": body.decode(), "parsed": None}
 
+
+@app.post("/vto/generate-debug")
+async def generate_vto_debug(request: Request, authorization: str = Header(None)):
+    """Debug VTO endpoint"""
+    body = await request.body()
+    print(f"=== VTO DEBUG ===")
+    print(f"Raw body: {body}")
+    try:
+        json_body = await request.json()
+        print(f"Parsed: {json_body}")
+        print(f"Items: {json_body.get('items', 'NO ITEMS KEY')}")
+    except Exception as e:
+        print(f"Parse error: {e}")
+    return {"debug": "check logs"}
+
