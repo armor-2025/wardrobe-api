@@ -2364,3 +2364,83 @@ async def generate_vto_debug(request: Request, authorization: str = Header(None)
         print(f"Parse error: {e}")
     return {"debug": "check logs"}
 
+
+@app.post("/vto/generate-simple")
+async def generate_vto_simple(
+    item_ids: str = Form(...),
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Generate VTO using comma-separated item IDs - simpler for FlutterFlow"""
+    import httpx
+    import base64
+    from vto_gemini3_endpoint import generate_vto, VTORequest, GarmentItem
+    
+    print(f"=== VTO SIMPLE ===")
+    print(f"item_ids: {item_ids}")
+    
+    # Get user
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    if not user.original_photo_url:
+        raise HTTPException(status_code=400, detail="No VTO photo uploaded")
+    
+    # Parse item IDs
+    ids = [int(id.strip()) for id in item_ids.split(",") if id.strip()]
+    print(f"Parsed IDs: {ids}")
+    
+    if not ids:
+        raise HTTPException(status_code=400, detail="No items selected")
+    
+    # Get items from database
+    items = db.query(WardrobeItem).filter(
+        WardrobeItem.id.in_(ids),
+        WardrobeItem.user_id == user.id
+    ).all()
+    
+    print(f"Found {len(items)} items")
+    
+    if not items:
+        raise HTTPException(status_code=400, detail="No valid items found")
+    
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        # Fetch user's original photo
+        resp = await client.get(user.original_photo_url)
+        model_base64 = base64.b64encode(resp.content).decode('utf-8')
+        
+        # Fetch garment images
+        garments = []
+        for item in items:
+            resp = await client.get(item.image_url)
+            description = f"{item.color or ''} {item.fabric or ''}".strip() or item.category
+            garments.append(GarmentItem(
+                image_base64=base64.b64encode(resp.content).decode('utf-8'),
+                category=item.category or "top",
+                description=description
+            ))
+        
+        # Call VTO
+        vto_request = VTORequest(
+            model_image_base64=model_base64,
+            garments=garments
+        )
+        result = await generate_vto(vto_request)
+        
+        if result.success and result.image_base64:
+            from avatar_endpoint import upload_to_firebase
+            from datetime import datetime
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            vto_path = f"users/{user.id}/vto_{timestamp}.png"
+            image_bytes = base64.b64decode(result.image_base64)
+            vto_url = upload_to_firebase(image_bytes, vto_path, content_type='image/png')
+            
+            return {"success": True, "vto_url": vto_url, "items_count": len(garments)}
+        
+        return {"success": False, "error": result.error or "VTO generation failed"}
+
