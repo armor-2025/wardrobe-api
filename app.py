@@ -2628,3 +2628,47 @@ async def save_wardrobe_direct(
     
     return {"id": item.id, "image_url": item.image_url}
 
+
+@app.post("/vto/generate-sync")
+async def generate_vto_sync(
+    item_ids: str = Form(...),
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Submit VTO and wait for completion (synchronous)"""
+    import asyncio
+    
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # Create job
+    job_id = str(uuid.uuid4())
+    job = VTOJob(
+        id=job_id,
+        user_id=user.id,
+        status="pending",
+        item_ids=item_ids,
+        created_at=datetime.utcnow()
+    )
+    db.add(job)
+    db.commit()
+    
+    # Start processing in background
+    asyncio.create_task(process_vto_job(job_id, user.id, item_ids, db))
+    
+    # Poll for completion (max 60 seconds)
+    for i in range(20):
+        await asyncio.sleep(3)
+        db.refresh(job)
+        if job.status == "complete":
+            return {"success": True, "vto_url": job.vto_url}
+        elif job.status == "failed":
+            return {"success": False, "error": job.error}
+    
+    return {"success": False, "error": "Timeout waiting for VTO generation"}
+
