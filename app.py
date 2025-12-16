@@ -561,9 +561,13 @@ async def upload_wardrobe_file(
         print(f"Background removal failed: {e}")
         shutil.move(temp_path, final_path)
     
-    # Create public URL (OUTSIDE the try/except)
-    local_url = f"http://127.0.0.1:8012/uploads/wardrobe/{unique_filename}"
-    image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
+    # Upload to Firebase
+    from avatar_endpoint import upload_to_firebase
+    with open(final_path, 'rb') as f:
+        file_bytes = f.read()
+    firebase_path = f"wardrobe/{user.id}/{unique_filename}"
+    image_url = upload_to_firebase(file_bytes, firebase_path, content_type="image/png")
+    final_path.unlink(missing_ok=True)  # Clean up local file
     
     # AI analyze the image
     vision = get_vision_service()
@@ -1501,13 +1505,10 @@ async def upload_wardrobe_smart(
         # Remove background
         processed_bytes = await process_single_item(file_bytes)
         
-        # Save to file
-        unique_filename = f"{uuid.uuid4()}.png"
-        final_path = upload_dir / unique_filename
-        with open(final_path, "wb") as f:
-            f.write(processed_bytes)
-        
-        image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
+        # Upload to Firebase
+        from avatar_endpoint import upload_to_firebase
+        unique_filename = f"wardrobe/{user.id}/{uuid.uuid4()}.png"
+        image_url = upload_to_firebase(processed_bytes, unique_filename, content_type="image/png")
         item_info = items[0]
         
         return {
@@ -1561,14 +1562,11 @@ async def upload_wardrobe_smart(
     # Create queue
     queue = create_queue(user.id, queued_items)
     
-    # Save first item to file and return it
+    # Upload first item to Firebase and return it
     first_item = queue.get_current()
-    unique_filename = f"{uuid.uuid4()}.png"
-    final_path = upload_dir / unique_filename
-    with open(final_path, "wb") as f:
-        f.write(first_item.image_bytes)
-    
-    image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
+    from avatar_endpoint import upload_to_firebase
+    unique_filename = f"wardrobe/{user.id}/{uuid.uuid4()}.png"
+    image_url = upload_to_firebase(first_item.image_bytes, unique_filename, content_type="image/png")
     
     return {
         "type": "outfit",
@@ -1641,14 +1639,10 @@ async def save_and_next_item(
             "next_item": None
         }
     
-    # Save next item to file
-    upload_dir = Path("uploads/wardrobe")
-    unique_filename = f"{uuid.uuid4()}.png"
-    final_path = upload_dir / unique_filename
-    with open(final_path, "wb") as f:
-        f.write(next_queued.image_bytes)
-    
-    next_image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
+    # Upload next item to Firebase
+    from avatar_endpoint import upload_to_firebase
+    unique_filename = f"wardrobe/{user.id}/{uuid.uuid4()}.png"
+    next_image_url = upload_to_firebase(next_queued.image_bytes, unique_filename, content_type="image/png")
     
     return {
         "saved_item_id": item.id,
@@ -1692,14 +1686,10 @@ async def skip_item(
         delete_queue(queue_id)
         return {"has_next": False, "next_item": None}
     
-    # Save next item to file
-    upload_dir = Path("uploads/wardrobe")
-    unique_filename = f"{uuid.uuid4()}.png"
-    final_path = upload_dir / unique_filename
-    with open(final_path, "wb") as f:
-        f.write(next_queued.image_bytes)
-    
-    next_image_url = f"https://yow-api.onrender.com/uploads/wardrobe/{unique_filename}"
+    # Upload next item to Firebase
+    from avatar_endpoint import upload_to_firebase
+    unique_filename = f"wardrobe/{user.id}/{uuid.uuid4()}.png"
+    next_image_url = upload_to_firebase(next_queued.image_bytes, unique_filename, content_type="image/png")
     
     return {
         "has_next": True,
