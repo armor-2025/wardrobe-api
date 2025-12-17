@@ -2547,15 +2547,15 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str):
                 from PIL import Image
                 from io import BytesIO
                 
-                # Remove background for transparent PNG
+                # Remove background with alpha matting for clean edges
                 image_bytes = base64.b64decode(result.image_base64)
-                input_image = Image.open(BytesIO(image_bytes))
-                output_image = remove(input_image)
-                
-                # Save as PNG with alpha
-                output_buffer = BytesIO()
-                output_image.save(output_buffer, format='PNG')
-                transparent_bytes = output_buffer.getvalue()
+                output_image = remove(
+                    image_bytes,
+                    alpha_matting=True,
+                    alpha_matting_foreground_threshold=240,
+                    alpha_matting_background_threshold=10
+                )
+                transparent_bytes = output_image
                 
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 vto_path = f"users/{user_id}/vto_{timestamp}.png"
