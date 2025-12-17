@@ -79,7 +79,12 @@ def build_prompt(garments: List[GarmentItem]) -> str:
     for i, g in enumerate(garments, start=2):  # Start at 2 because image 1 is the model
         layer_hint = ""
         if g.category.lower() in ["coat", "jacket", "outerwear"]:
-            layer_hint = " (OUTERMOST LAYER - worn open)"
+            # Check if there's a top/sweater/tshirt in the outfit
+            has_inner_top = any(gc.category.lower() in ["top", "sweater", "shirt", "blouse", "t-shirt", "tshirt", "jumper"] for gc in garments)
+            if has_inner_top:
+                layer_hint = " (OUTERMOST LAYER - worn OPEN to show top underneath)"
+            else:
+                layer_hint = " (OUTERMOST LAYER - worn CLOSED/zipped/buttoned up)"
         elif g.category.lower() in ["top", "sweater", "shirt", "blouse"]:
             layer_hint = " (TOP - visible under outerwear)"
         elif g.category.lower() in ["bottom", "trousers", "pants", "skirt"]:
