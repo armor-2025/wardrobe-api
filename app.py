@@ -2659,7 +2659,7 @@ async def generate_vto_sync(
     db.commit()
     
     # Start processing in background
-    asyncio.create_task(process_vto_job(job_id, user.id, item_ids, db))
+    asyncio.create_task(process_vto_job(job_id, user.id, item_ids))
     
     # Poll for completion (max 60 seconds)
     for i in range(20):
