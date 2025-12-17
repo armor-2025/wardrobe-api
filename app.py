@@ -2548,9 +2548,12 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str):
                 from io import BytesIO
                 
                 # Remove background with alpha matting for clean edges
+                from rembg import new_session
                 image_bytes = base64.b64decode(result.image_base64)
+                session = new_session("isnet-general-use")
                 output_image = remove(
                     image_bytes,
+                    session=session,
                     alpha_matting=True,
                     alpha_matting_foreground_threshold=240,
                     alpha_matting_background_threshold=10
