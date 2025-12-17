@@ -2543,11 +2543,23 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str):
             if result.success and result.image_base64:
                 from avatar_endpoint import upload_to_firebase
                 from datetime import datetime
+                from rembg import remove
+                from PIL import Image
+                from io import BytesIO
+                
+                # Remove background for transparent PNG
+                image_bytes = base64.b64decode(result.image_base64)
+                input_image = Image.open(BytesIO(image_bytes))
+                output_image = remove(input_image)
+                
+                # Save as PNG with alpha
+                output_buffer = BytesIO()
+                output_image.save(output_buffer, format='PNG')
+                transparent_bytes = output_buffer.getvalue()
                 
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 vto_path = f"users/{user_id}/vto_{timestamp}.png"
-                image_bytes = base64.b64decode(result.image_base64)
-                vto_url = upload_to_firebase(image_bytes, vto_path, content_type='image/png')
+                vto_url = upload_to_firebase(transparent_bytes, vto_path, content_type='image/png')
                 
                 job.status = "complete"
                 job.vto_url = vto_url
