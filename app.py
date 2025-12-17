@@ -1511,6 +1511,11 @@ async def upload_wardrobe_smart(
         image_url = upload_to_firebase(processed_bytes, unique_filename, content_type="image/png")
         item_info = items[0]
         
+        # Memory cleanup
+        del file_bytes, processed_bytes
+        import gc
+        gc.collect()
+        
         return {
             "type": "single_item",
             "queue_id": None,
@@ -1567,6 +1572,11 @@ async def upload_wardrobe_smart(
     from avatar_endpoint import upload_to_firebase
     unique_filename = f"wardrobe/{user.id}/{uuid.uuid4()}.png"
     image_url = upload_to_firebase(first_item.image_bytes, unique_filename, content_type="image/png")
+    
+    # Memory cleanup
+    del file_bytes
+    import gc
+    gc.collect()
     
     return {
         "type": "outfit",
