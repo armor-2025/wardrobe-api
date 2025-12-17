@@ -15,7 +15,9 @@ def resize_image_bytes(image_bytes: bytes, max_size: int = 1024) -> bytes:
     result = output.getvalue()
     img.close()
     output.close()
-    return result, Form, Query, Request
+    return result
+
+from fastapi import Form, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, List
 import os
