@@ -80,11 +80,11 @@ def build_prompt(garments: List[GarmentItem]) -> str:
         layer_hint = ""
         if g.category.lower() in ["coat", "jacket", "outerwear"]:
             # Check if there's a top/sweater/tshirt in the outfit
-            has_inner_top = any(gc.category.lower() in ["top", "sweater", "shirt", "blouse", "t-shirt", "tshirt", "jumper"] for gc in garments)
+            has_inner_top = any(gc.category.lower() in ["top", "sweater", "shirt", "blouse", "t-shirt", "tshirt", "jumper", "hoodie", "cardigan"] for gc in garments)
             if has_inner_top:
-                layer_hint = " (OUTERMOST LAYER - worn OPEN to show top underneath)"
+                layer_hint = " (OUTERMOST LAYER - worn OPEN to show the provided top underneath)"
             else:
-                layer_hint = " (OUTERMOST LAYER - worn CLOSED/zipped/buttoned up)"
+                layer_hint = " (OUTERMOST LAYER - MUST be worn fully CLOSED/ZIPPED/BUTTONED - do NOT show any top underneath, do NOT invent a top)"
         elif g.category.lower() in ["top", "sweater", "shirt", "blouse"]:
             layer_hint = " (TOP - visible under outerwear)"
         elif g.category.lower() in ["bottom", "trousers", "pants", "skirt"]:
@@ -148,11 +148,19 @@ def build_prompt(garments: List[GarmentItem]) -> str:
     
     requirements.append(f"{req_num}. Full body shot showing feet with shoes")
     req_num += 1
-    requirements.append(f"{req_num}. Neutral grey studio background")
+    requirements.append(f"{req_num}. Background color: #fafafa (off-white)")
     
     requirements_text = "\n".join(requirements)
     
-    prompt = f"""Virtual try-on task: Dress the person in image 1 wearing ALL of these:
+    prompt = f"""Virtual try-on task: Dress the person in image 1 wearing ONLY the garments provided below.
+
+CRITICAL RULES:
+- ONLY use the exact garment images provided below - nothing else
+- Do NOT copy or use ANY clothing visible in the person's reference photo
+- If outerwear is marked as CLOSED, it must be fully zipped/buttoned with NO top visible underneath
+- The person's torso should only show what is explicitly provided in the garments list
+
+Garments to apply:
 {garments_text}
 
 CRITICAL REQUIREMENTS:
