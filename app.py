@@ -1,6 +1,21 @@
 from dotenv import load_dotenv
 load_dotenv()
-from fastapi import FastAPI, Form, Query, Request
+from fastapi import FastAPI
+
+def resize_image_bytes(image_bytes: bytes, max_size: int = 1024) -> bytes:
+    from PIL import Image
+    from io import BytesIO
+    img = Image.open(BytesIO(image_bytes))
+    if max(img.size) > max_size:
+        ratio = max_size / max(img.size)
+        new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
+        img = img.resize(new_size, Image.LANCZOS)
+    output = BytesIO()
+    img.save(output, format="PNG", optimize=True)
+    result = output.getvalue()
+    img.close()
+    output.close()
+    return result, Form, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, List
 import os
@@ -1473,8 +1488,12 @@ async def upload_wardrobe_smart(
     if not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
     
-    # Read file bytes
-    file_bytes = await file.read()
+    # Read file bytes and resize to save memory
+    raw_bytes = await file.read()
+    file_bytes = resize_image_bytes(raw_bytes, max_size=1024)
+    del raw_bytes
+    import gc
+    gc.collect()
     
     # Save original temporarily for Gemini analysis
     upload_dir = Path("uploads/wardrobe")
