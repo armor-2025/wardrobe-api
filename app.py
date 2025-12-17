@@ -2444,8 +2444,12 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str):
     """Background task to generate VTO"""
     import httpx
     import base64
+    import time
     from vto_gemini3_endpoint import generate_vto, VTORequest, GarmentItem
     from database import SessionLocal
+    
+    start_time = time.time()
+    print(f"[VTO {job_id}] Starting job")
     
     db = SessionLocal()
     try:
@@ -2478,8 +2482,11 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str):
         
         async with httpx.AsyncClient(timeout=120.0) as client:
             # Fetch user's original photo
+            print(f"[VTO {job_id}] Fetching avatar...")
+            t1 = time.time()
             resp = await client.get(user.original_photo_url)
             model_base64 = base64.b64encode(resp.content).decode('utf-8')
+            print(f"[VTO {job_id}] Avatar fetched in {time.time()-t1:.1f}s")
             
             # Fetch garment images
             garments = []
@@ -2497,7 +2504,10 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str):
                 model_image_base64=model_base64,
                 garments=garments
             )
+            print(f"[VTO {job_id}] Calling Gemini...")
+            t2 = time.time()
             result = await generate_vto(vto_request)
+            print(f"[VTO {job_id}] Gemini done in {time.time()-t2:.1f}s")
             
             if result.success and result.image_base64:
                 from avatar_endpoint import upload_to_firebase
