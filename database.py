@@ -171,3 +171,11 @@ class VTOJob(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 
+
+class SavedOutfit(Base):
+    __tablename__ = "saved_outfits"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    vto_url = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)

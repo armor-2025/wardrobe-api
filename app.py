@@ -2437,7 +2437,7 @@ async def generate_vto_simple(
 
 import uuid
 import asyncio
-from database import VTOJob
+from database import VTOJob, SavedOutfit
 
 # Background task to process VTO
 async def process_vto_job(job_id: str, user_id: int, item_ids: str):
@@ -2701,61 +2701,4 @@ async def get_latest_vto(
         "job_id": job.id
     }
 
-
-# Saved Outfits Model
-class SavedOutfit(Base):
-    __tablename__ = "saved_outfits"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    vto_url = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-@app.post("/outfits/save")
-async def save_outfit(
-    vto_url: str = Form(...),
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    """Save a VTO to user's outfits"""
-    if not authorization or not authorization.startswith('Bearer '):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    token = authorization.split(' ')[1]
-    user = get_current_user(db, token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    outfit = SavedOutfit(
-        user_id=user.id,
-        vto_url=vto_url,
-        created_at=datetime.utcnow()
-    )
-    db.add(outfit)
-    db.commit()
-    db.refresh(outfit)
-    
-    return {"success": True, "id": outfit.id}
-
-
-@app.get("/outfits")
-async def get_saved_outfits(
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    """Get all saved outfits for a user"""
-    if not authorization or not authorization.startswith('Bearer '):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    token = authorization.split(' ')[1]
-    user = get_current_user(db, token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    outfits = db.query(SavedOutfit).filter(
-        SavedOutfit.user_id == user.id
-    ).order_by(SavedOutfit.created_at.desc()).all()
-    
-    return [{"id": o.id, "vto_url": o.vto_url, "created_at": o.created_at.isoformat()} for o in outfits]
 
