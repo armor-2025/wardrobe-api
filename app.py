@@ -2511,6 +2511,13 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str):
                 job.status = "complete"
                 job.vto_url = vto_url
                 job.completed_at = datetime.utcnow()
+                
+                # Memory cleanup
+                del model_base64
+                del garments
+                del image_bytes
+                import gc
+                gc.collect()
             else:
                 job.status = "failed"
                 job.error = result.error or "VTO generation failed"
