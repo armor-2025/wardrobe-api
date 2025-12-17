@@ -2672,3 +2672,32 @@ async def generate_vto_sync(
     
     return {"success": False, "error": "Timeout waiting for VTO generation"}
 
+
+@app.get("/user/latest-vto")
+async def get_latest_vto(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Get user's most recent VTO or pending status"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # Get most recent job
+    job = db.query(VTOJob).filter(
+        VTOJob.user_id == user.id
+    ).order_by(VTOJob.created_at.desc()).first()
+    
+    if not job:
+        return {"status": "none", "vto_url": None}
+    
+    return {
+        "status": job.status,
+        "vto_url": job.vto_url,
+        "job_id": job.id
+    }
+
