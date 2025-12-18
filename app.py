@@ -2750,3 +2750,252 @@ async def get_latest_vto(
     }
 
 
+
+
+# ============ BATCH UPLOAD SYSTEM ============
+import asyncio
+from typing import List
+
+class BatchUploadRequest(BaseModel):
+    image_urls: List[str]  # Firebase URLs, max 10
+
+@app.post("/wardrobe/batch-upload")
+async def batch_upload(
+    request: BatchUploadRequest,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Batch upload up to 10 images - processes sequentially in background
+    Returns immediately with queue_id after first item is ready
+    """
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    image_urls = request.image_urls[:10]  # Max 10
+    
+    if not image_urls:
+        raise HTTPException(status_code=400, detail="No images provided")
+    
+    print(f"📦 Batch upload: {len(image_urls)} images for user {user.id}")
+    
+    # Process first image immediately so user has something to sort
+    first_url = image_urls[0]
+    remaining_urls = image_urls[1:]
+    
+    # Download and process first image
+    import httpx
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.get(first_url)
+        first_bytes = resp.content
+    
+    # Resize to save memory
+    first_bytes = resize_image_bytes(first_bytes, max_size=1024)
+    
+    # Save temp for Gemini analysis
+    temp_path = Path(f"uploads/wardrobe/temp_batch_{uuid.uuid4()}.png")
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(temp_path, "wb") as f:
+        f.write(first_bytes)
+    
+    # Analyze with Gemini
+    vision = get_vision_service()
+    analysis = await vision.analyze_upload(str(temp_path))
+    temp_path.unlink(missing_ok=True)
+    
+    image_type = analysis.get("type", "single_item")
+    items = analysis.get("items", [])
+    
+    if not items:
+        raise HTTPException(status_code=400, detail="Could not detect items in first image")
+    
+    # Process items from first image
+    queued_items = []
+    sam3 = get_sam3_service()
+    
+    if image_type == "single_item" or len(items) == 1:
+        # Single item - just remove background
+        processed_bytes = await process_single_item(first_bytes)
+        item_info = items[0]
+        queued_items.append(QueuedItem(
+            image_bytes=processed_bytes,
+            description=item_info.get("description", "unknown"),
+            category=item_info.get("category", "unknown"),
+            color=item_info.get("color", "unknown")
+        ))
+    else:
+        # Outfit - segment each item
+        for item_info in items:
+            label = item_info.get("label", "clothing")
+            description = item_info.get("description", "unknown")
+            
+            seg_result = await sam3.segment_item(first_bytes, label)
+            
+            if seg_result["success"]:
+                extracted_bytes = await extract_mask_from_result(
+                    first_bytes, 
+                    seg_result["result"], 
+                    category=item_info.get("category", "")
+                )
+                if extracted_bytes:
+                    queued_items.append(QueuedItem(
+                        image_bytes=extracted_bytes,
+                        description=description,
+                        category=item_info.get("category", "unknown"),
+                        color=item_info.get("color", "unknown")
+                    ))
+    
+    del first_bytes
+    import gc
+    gc.collect()
+    
+    if not queued_items:
+        raise HTTPException(status_code=400, detail="Could not process first image")
+    
+    # Create queue with first image items
+    queue = create_queue(user.id, queued_items)
+    
+    # Upload first item to Firebase
+    first_item = queue.get_current()
+    unique_filename = f"wardrobe/{user.id}/{uuid.uuid4()}.png"
+    image_url = upload_to_firebase(first_item.image_bytes, unique_filename, content_type="image/png")
+    
+    # Start background processing of remaining images
+    if remaining_urls:
+        asyncio.create_task(process_batch_background(
+            user_id=user.id,
+            queue_id=queue.queue_id,
+            image_urls=remaining_urls
+        ))
+    
+    return {
+        "queue_id": queue.queue_id,
+        "total_images": len(image_urls),
+        "processing_remaining": len(remaining_urls),
+        "first_item": {
+            "image_url": image_url,
+            "category": first_item.category,
+            "description": first_item.description,
+            "color": first_item.color
+        },
+        "queue_length": queue.total_items
+    }
+
+
+async def process_batch_background(user_id: int, queue_id: str, image_urls: List[str]):
+    """Process remaining batch images in background"""
+    import httpx
+    
+    print(f"🔄 Background processing {len(image_urls)} remaining images...")
+    
+    for i, url in enumerate(image_urls):
+        try:
+            print(f"   Processing image {i+2}/{len(image_urls)+1}...")
+            
+            # Download image
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.get(url)
+                file_bytes = resp.content
+            
+            file_bytes = resize_image_bytes(file_bytes, max_size=1024)
+            
+            # Save temp for analysis
+            temp_path = Path(f"uploads/wardrobe/temp_batch_{uuid.uuid4()}.png")
+            with open(temp_path, "wb") as f:
+                f.write(file_bytes)
+            
+            # Analyze
+            vision = get_vision_service()
+            analysis = await vision.analyze_upload(str(temp_path))
+            temp_path.unlink(missing_ok=True)
+            
+            items = analysis.get("items", [])
+            image_type = analysis.get("type", "single_item")
+            
+            if not items:
+                print(f"   ⚠️ No items detected in image {i+2}")
+                continue
+            
+            # Get queue
+            queue = _queues.get(queue_id)
+            if not queue:
+                print(f"   ❌ Queue {queue_id} not found, stopping")
+                break
+            
+            sam3 = get_sam3_service()
+            
+            if image_type == "single_item" or len(items) == 1:
+                processed_bytes = await process_single_item(file_bytes)
+                item_info = items[0]
+                queue.items.append(QueuedItem(
+                    image_bytes=processed_bytes,
+                    description=item_info.get("description", "unknown"),
+                    category=item_info.get("category", "unknown"),
+                    color=item_info.get("color", "unknown")
+                ))
+                print(f"   ✓ Added: {item_info.get('description', 'unknown')}")
+            else:
+                # Outfit - segment each
+                for item_info in items:
+                    label = item_info.get("label", "clothing")
+                    seg_result = await sam3.segment_item(file_bytes, label)
+                    
+                    if seg_result["success"]:
+                        extracted_bytes = await extract_mask_from_result(
+                            file_bytes,
+                            seg_result["result"],
+                            category=item_info.get("category", "")
+                        )
+                        if extracted_bytes:
+                            queue.items.append(QueuedItem(
+                                image_bytes=extracted_bytes,
+                                description=item_info.get("description", "unknown"),
+                                category=item_info.get("category", "unknown"),
+                                color=item_info.get("color", "unknown")
+                            ))
+                            print(f"   ✓ Added: {item_info.get('description', 'unknown')}")
+            
+            del file_bytes
+            import gc
+            gc.collect()
+            
+            # Small delay between images
+            await asyncio.sleep(0.5)
+            
+        except Exception as e:
+            print(f"   ❌ Error processing image {i+2}: {e}")
+            continue
+    
+    print(f"✅ Batch processing complete for queue {queue_id[:8]}")
+
+
+@app.get("/wardrobe/batch-status/{queue_id}")
+async def get_batch_status(
+    queue_id: str,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Get current queue status - how many items ready"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    queue = get_queue(queue_id, user.id)
+    if not queue:
+        raise HTTPException(status_code=404, detail="Queue not found")
+    
+    return {
+        "queue_id": queue_id,
+        "total_items": queue.total_items,
+        "current_index": queue.current_index,
+        "items_remaining": queue.total_items - queue.current_index
+    }
