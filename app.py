@@ -2777,7 +2777,7 @@ async def batch_upload(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
     
-    image_urls = request.image_urls[:10]  # Max 10
+    image_urls = request.image_urls
     
     if not image_urls:
         raise HTTPException(status_code=400, detail="No images provided")
