@@ -1988,7 +1988,7 @@ async def prettify_item_v2(
         img_buffer = BytesIO()
         result.save(img_buffer, format='PNG')
         img_buffer.seek(0)
-        transparent_bytes = remove(img_buffer.read())
+        transparent_bytes = remove(img_buffer.read(), alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10)
         result = Image.open(BytesIO(transparent_bytes))
         
         # Save result as PNG
