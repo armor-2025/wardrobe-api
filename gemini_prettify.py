@@ -59,7 +59,7 @@ class GeminiPrettify:
         buffer.seek(0)
         return Part.from_bytes(data=buffer.read(), mime_type="image/jpeg")
     
-    def prettify(self, image_path_or_pil, description="garment"):
+    def prettify(self, image_path_or_pil, description="garment", category="clothing"):
         """
         Transform segmented garment into professional flat-lay product image
         
