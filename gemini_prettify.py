@@ -26,7 +26,7 @@ class GeminiPrettify:
     
     def __init__(self):
         self.client = genai.Client()
-        self.model = "gemini-2.5-flash-preview-05-20"  # Or use gemini-3-pro-image-preview
+        self.model = "gemini-2.5-flash-image"
         self.max_size = 1024
         print("✅ Gemini Prettify loaded (Vertex AI)")
     
