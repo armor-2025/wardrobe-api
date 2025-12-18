@@ -83,24 +83,21 @@ class GeminiPrettify:
             
             print(f"   🎨 Generating flat-lay for: {description}...")
             
-            prompt = f"""Transform this {description} into a professional e-commerce product photograph.
+            prompt = f"""This is a segmented cutout of a {description}. 
+The image has gaps and rough edges from the segmentation process - these need to be filled in and smoothed.
 
-REQUIREMENTS:
-1. Create a clean, professional flat-lay style image
-2. Pure white background (#FFFFFF)
-3. Perfect studio lighting - soft, even, no harsh shadows
-4. Item should be:
-   - Perfectly centered in frame
-   - Smooth and naturally shaped
-   - As if professionally styled for a catalog
-5. PRESERVE EXACTLY:
-   - All colors, patterns, and textures
-   - All design details (buttons, zippers, logos, prints)
-   - The exact style and silhouette
-6. Remove any rough edges or segmentation artifacts
-7. Professional retail catalog quality
+Create a professional flat-lay product photo of this EXACT {description}:
+- Fill in any gaps or holes from segmentation
+- Smooth rough edges
+- PURE WHITE background (#FFFFFF)
+- NO shadows whatsoever
+- Flat lay position (laid flat, viewed from above)
+- Maintain the EXACT colors and design from the original image
+- Clean, professional e-commerce style
+- If this is a jacket, coat, cardigan or any outerwear - show it BUTTONED UP / ZIPPED CLOSED
+- PNG transparency is NOT needed - white background only
 
-Generate the clean product image."""
+Output a clean, professional product image."""
 
             response = self.client.models.generate_content(
                 model=self.model,
