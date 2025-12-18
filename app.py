@@ -2999,3 +2999,30 @@ async def get_batch_status(
         "current_index": queue.current_index,
         "items_remaining": queue.total_items - queue.current_index
     }
+
+@app.post("/outfits/save")
+async def save_outfit(
+    vto_url: str = Form(...),
+    outfit_type: str = Form(default="vto"),
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Save a VTO to user's outfits"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    outfit = SavedOutfit(
+        user_id=user.id,
+        vto_url=vto_url,
+        created_at=datetime.utcnow()
+    )
+    db.add(outfit)
+    db.commit()
+    db.refresh(outfit)
+    
+    return {"success": True, "id": outfit.id, "outfit_type": outfit_type}
