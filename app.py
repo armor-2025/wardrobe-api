@@ -1920,15 +1920,15 @@ async def prettify_item(
             raise HTTPException(status_code=500, detail="Prettify failed")
         
         # Save result
-        upload_dir = Path("uploads/prettified")
-        upload_dir.mkdir(parents=True, exist_ok=True)
+        # Upload to Firebase Storage instead of local disk
+        from firebase_upload import upload_image_to_firebase
+        from io import BytesIO
         
-        filename = f"{uuid.uuid4()}.png"
-        result_path = upload_dir / filename
-        result.save(result_path, "PNG")
+        img_buffer = BytesIO()
+        result.save(img_buffer, format="PNG")
+        img_bytes = img_buffer.getvalue()
         
-        prettified_url = f"https://yow-api.onrender.com/uploads/prettified/{filename}"
-        
+        prettified_url = upload_image_to_firebase(img_bytes, "prettified")
         return {
             "success": True,
             "prettified_url": prettified_url,
@@ -1991,15 +1991,14 @@ async def prettify_item_v2(
         transparent_bytes = remove(img_buffer.read(), alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10)
         result = Image.open(BytesIO(transparent_bytes))
         
-        # Save result as PNG
-        upload_dir = Path("uploads/prettified")
-        upload_dir.mkdir(parents=True, exist_ok=True)
+        # Upload to Firebase Storage
+        from firebase_upload import upload_image_to_firebase
         
-        filename = f"{uuid.uuid4()}.png"
-        result_path = upload_dir / filename
-        result.save(result_path, "PNG")
+        img_buffer2 = BytesIO()
+        result.save(img_buffer2, format="PNG")
+        img_bytes = img_buffer2.getvalue()
         
-        prettified_url = f"https://yow-api.onrender.com/uploads/prettified/{filename}"
+        prettified_url = upload_image_to_firebase(img_bytes, "prettified")
         
         return {
             "success": True,
