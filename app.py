@@ -2922,7 +2922,7 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
                 continue
             
             # Get queue
-            queue = _queues.get(queue_id)
+            queue = get_queue(queue_id, user_id)
             if not queue:
                 print(f"   ❌ Queue {queue_id} not found, stopping")
                 break
