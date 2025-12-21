@@ -3032,3 +3032,14 @@ async def save_outfit(
     db.refresh(outfit)
     
     return {"success": True, "id": outfit.id, "outfit_type": outfit_type}
+
+@app.post("/auth/login-debug")
+async def login_debug(request: Request):
+    """Debug endpoint to see what FlutterFlow sends"""
+    body = await request.body()
+    headers = dict(request.headers)
+    return {
+        "body_raw": body.decode('utf-8'),
+        "headers": headers,
+        "content_type": headers.get('content-type')
+    }
