@@ -1,9 +1,7 @@
 """
-Gemini 3 Pro Image Virtual Try-On Endpoint
+Gemini 3 Pro Image Virtual Try-On Endpoint - V2 IMPROVED
 Model: gemini-3-pro-image-preview
-Cost: ~$0.13/image (real-time), $0.065 (batch)
-Max items: 12
-NO temperature specified - defaults to 1.0 (Google recommended)
+With styling notes, better prompts, fafafa background
 """
 
 from fastapi import APIRouter, HTTPException
@@ -11,7 +9,6 @@ from pydantic import BaseModel
 from typing import List, Optional
 import base64
 import os
-import json
 from google import genai
 from google.genai.types import Part
 from PIL import Image
@@ -19,11 +16,9 @@ import io
 
 router = APIRouter(prefix="/vto", tags=["Virtual Try-On"])
 
-# Initialize Vertex AI
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
-os.environ["GOOGLE_CLOUD_LOCATION"] = "global"  # MUST be global for image generation
+os.environ["GOOGLE_CLOUD_LOCATION"] = "global"
 
-# Handle Render deployment credentials
 if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON"):
     creds_json = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
     creds_path = "/tmp/gcp_credentials.json"
@@ -36,14 +31,15 @@ client = genai.Client()
 
 class GarmentItem(BaseModel):
     image_base64: str
-    category: str  # top, bottom, dress, coat, shoes, bag, hat, scarf, sunglasses, jewelry
-    description: str  # e.g., "navy blue sweater", "black leather boots"
+    category: str
+    description: str
 
 
 class VTORequest(BaseModel):
     model_image_base64: str
     garments: List[GarmentItem]
-    body_type: Optional[str] = "average"  # slim, average, curvy, plus
+    body_type: Optional[str] = "average"
+    styling_notes: Optional[str] = None
 
 
 class VTOResponse(BaseModel):
@@ -55,7 +51,6 @@ class VTOResponse(BaseModel):
 
 
 def convert_to_png(image_bytes: bytes) -> bytes:
-    """Convert any image format to PNG for consistency"""
     img = Image.open(io.BytesIO(image_bytes))
     if img.mode != 'RGBA':
         img = img.convert('RGBA')
@@ -66,148 +61,156 @@ def convert_to_png(image_bytes: bytes) -> bytes:
 
 
 def base64_to_part(b64_string: str) -> Part:
-    """Convert base64 string to Gemini Part"""
     image_bytes = base64.b64decode(b64_string)
     return Part.from_bytes(data=image_bytes, mime_type="image/png")
 
 
-def build_prompt(garments: List[GarmentItem]) -> str:
-    """Build the VTO prompt - EXACT format from working 9-item test"""
-    
-    # Build garment list with image references
-    garment_lines = []
-    for i, g in enumerate(garments, start=2):  # Start at 2 because image 1 is the model
-        layer_hint = ""
-        if g.category.lower() in ["coat", "jacket", "outerwear"]:
-            # Check if there's a top/sweater/tshirt in the outfit
-            has_inner_top = any(gc.category.lower() in ["top", "sweater", "shirt", "blouse", "t-shirt", "tshirt", "jumper", "hoodie", "cardigan"] for gc in garments)
-            if has_inner_top:
-                layer_hint = " (OUTERMOST LAYER - worn OPEN to show the provided top underneath)"
-            else:
-                layer_hint = " (OUTERMOST LAYER - MUST be worn fully CLOSED/ZIPPED/BUTTONED - do NOT show any top underneath, do NOT invent a top)"
-        elif g.category.lower() in ["top", "sweater", "shirt", "blouse"]:
-            layer_hint = " (TOP - visible under outerwear)"
-        elif g.category.lower() in ["bottom", "trousers", "pants", "skirt"]:
-            layer_hint = " (BOTTOM)"
-        elif g.category.lower() in ["dress"]:
-            layer_hint = " (DRESS - visible under outerwear)"
-        elif g.category.lower() in ["shoes", "boots", "trainers", "sneakers"]:
-            layer_hint = " (SHOES)"
-        elif g.category.lower() in ["bag", "handbag", "purse"]:
-            layer_hint = " (ACCESSORY - held or on shoulder)"
-        elif g.category.lower() in ["scarf"]:
-            layer_hint = " (ACCESSORY - around neck)"
-        elif g.category.lower() in ["hat", "cap", "beanie"]:
-            layer_hint = " (ACCESSORY - worn on head)"
-        elif g.category.lower() in ["sunglasses", "glasses"]:
-            layer_hint = " (ACCESSORY - worn on face)"
-        elif g.category.lower() in ["jewelry", "earrings", "necklace", "bracelet"]:
-            layer_hint = " (JEWELRY)"
-        
-        garment_lines.append(f"- Image {i}: {g.description}{layer_hint}")
-    
-    garments_text = "\n".join(garment_lines)
+def categorize_garments(garments: List[GarmentItem]) -> dict:
+    layers = {
+        "base": [], "bottom": [], "dress": [], "outer": [], "footwear": [], "accessories": []
+    }
+    for i, g in enumerate(garments, start=2):
+        cat = g.category.lower()
+        item = {"index": i, "description": g.description, "category": g.category}
+        if cat in ["top", "shirt", "blouse", "t-shirt", "tshirt", "sweater", "jumper", "hoodie", "bodysuit"]:
+            layers["base"].append(item)
+        elif cat in ["bottom", "trousers", "pants", "skirt", "shorts", "jeans"]:
+            layers["bottom"].append(item)
+        elif cat in ["dress", "jumpsuit", "romper"]:
+            layers["dress"].append(item)
+        elif cat in ["jacket", "coat", "outerwear", "blazer", "cardigan"]:
+            layers["outer"].append(item)
+        elif cat in ["shoes", "boots", "trainers", "sneakers", "loafers", "heels", "sandals"]:
+            layers["footwear"].append(item)
+        else:
+            layers["accessories"].append(item)
+    return layers
+
+
+def build_prompt(garments: List[GarmentItem], styling_notes: Optional[str] = None) -> str:
+    layers = categorize_garments(garments)
     num_items = len(garments)
+    garment_specs = []
+    layer_num = 1
     
-    # Build critical requirements based on items present
-    requirements = [
-        "1. EXACT same face - preserve all facial features precisely",
-        "2. EXACT same body shape and proportions",
-        f"3. ALL {num_items} items must be clearly visible and accurate to source images",
-    ]
+    # Check if there's outerwear but no top
+    has_outerwear = len(layers["outer"]) > 0
+    has_top = len(layers["base"]) > 0
     
-    # Add layering requirement if coat/jacket present
-    has_outerwear = any(g.category.lower() in ["coat", "jacket", "outerwear"] for g in garments)
-    if has_outerwear:
-        requirements.append("4. Coat/jacket worn OPEN so inner layers are visible underneath")
+    for item in layers["base"]:
+        if styling_notes and "crop" in styling_notes.lower() and "top" in item["description"].lower():
+            action = " - Action: Crop the hem to show midriff as per styling notes."
+        else:
+            action = " - Action: Maintain exact design, sleeve length, and fit from source."
+        garment_specs.append(f"{layer_num}. **Base Layer:** [Image {item['index']}: {item['description']}]{action}")
+        layer_num += 1
     
-    # Add accessory-specific requirements
-    has_scarf = any(g.category.lower() == "scarf" for g in garments)
-    has_sunglasses = any(g.category.lower() in ["sunglasses", "glasses"] for g in garments)
-    has_hat = any(g.category.lower() in ["hat", "cap", "beanie"] for g in garments)
-    has_bag = any(g.category.lower() in ["bag", "handbag", "purse"] for g in garments)
-    has_jewelry = any(g.category.lower() in ["jewelry", "earrings", "necklace", "bracelet"] for g in garments)
+    for item in layers["dress"]:
+        garment_specs.append(f"{layer_num}. **Full Body:** [Image {item['index']}: {item['description']}] - Action: Maintain exact length, silhouette, and sleeve length from source.")
+        layer_num += 1
     
-    req_num = 5 if has_outerwear else 4
+    for item in layers["bottom"]:
+        garment_specs.append(f"{layer_num}. **Bottom Layer:** [Image {item['index']}: {item['description']}] - Action: Maintain exact length, silhouette (wide-leg/slim/straight), and texture from source.")
+        layer_num += 1
     
-    if has_scarf:
-        requirements.append(f"{req_num}. Scarf worn around neck")
-        req_num += 1
-    if has_sunglasses:
-        requirements.append(f"{req_num}. Sunglasses worn on face")
-        req_num += 1
-    if has_hat:
-        requirements.append(f"{req_num}. Hat worn on head")
-        req_num += 1
-    if has_bag:
-        requirements.append(f"{req_num}. Bag visible and accurate to source")
-        req_num += 1
-    if has_jewelry:
-        requirements.append(f"{req_num}. Jewelry visible on ears/neck/wrist")
-        req_num += 1
+    for item in layers["outer"]:
+        if has_top:
+            action = " - Action: Worn open over base layer, maintain exact sleeve length and silhouette from source."
+        else:
+            action = " - Action: Worn CLOSED/ZIPPED/BUTTONED (no top underneath), maintain exact sleeve length and silhouette from source."
+        if styling_notes:
+            if "roll" in styling_notes.lower() and "sleeve" in styling_notes.lower():
+                action = " - Action: Roll sleeves up to elbows, worn open over base layer."
+            elif "drape" in styling_notes.lower() or "over the shoulders" in styling_notes.lower():
+                action = " - Action: Draped over shoulders, not worn with arms in sleeves."
+        garment_specs.append(f"{layer_num}. **Outer Layer:** [Image {item['index']}: {item['description']}]{action}")
+        layer_num += 1
     
-    requirements.append(f"{req_num}. Full body shot showing feet with shoes")
-    req_num += 1
-    requirements.append(f"{req_num}. Background color: #fafafa (off-white)")
+    for item in layers["footwear"]:
+        garment_specs.append(f"{layer_num}. **Footwear:** [Image {item['index']}: {item['description']}] - Action: Replace any existing shoes, show full shoe.")
+        layer_num += 1
     
-    requirements_text = "\n".join(requirements)
+    if layers["accessories"]:
+        acc_list = ", ".join([f"[Image {item['index']}: {item['description']}]" for item in layers["accessories"]])
+        bag_action = ""
+        if styling_notes and "bag" in styling_notes.lower() and "hand" in styling_notes.lower():
+            bag_action = " Bag held in hand."
+        garment_specs.append(f"{layer_num}. **Accessories:** {acc_list} - Action: Natural placement on body.{bag_action}")
     
-    prompt = f"""Virtual try-on task: Dress the person in image 1 wearing ONLY the garments provided below.
+    garment_section = "\n".join(garment_specs)
+    
+    styling_section = ""
+    if styling_notes and styling_notes.strip():
+        styling_section = f"""
 
-CRITICAL RULES:
-- ONLY use the exact garment images provided below - nothing else
-- Do NOT copy or use ANY clothing visible in the person's reference photo
-- If outerwear is marked as CLOSED, it must be fully zipped/buttoned with NO top visible underneath
-- The person's torso should only show what is explicitly provided in the garments list
-
-Garments to apply:
-{garments_text}
-
-CRITICAL REQUIREMENTS:
-{requirements_text}
-
-Generate the virtual try-on result."""
+### STYLING MODIFICATIONS
+- **User Request:** "{styling_notes.strip()}"
+- Apply these styling changes while maintaining garment accuracy."""
     
+    prompt = f"""### SYSTEM TASK
+Perform a high-fidelity virtual try-on. Use Image 1 as the immutable identity reference. Synthesize the garments from Images 2-{num_items + 1} onto the subject in Image 1.
+
+### IDENTITY PRESERVATION (CRITICAL)
+- **Subject:** Maintain the EXACT face, skin tone, hair texture, hair color, and body proportions of the person in Image 1.
+- **Face:** Keep EXACT original face with NO makeup, filters, or skin smoothing added.
+- **Anatomy Check:** Ensure exactly TWO hands and TWO feet. No limb duplication or extra appendages.
+- **Pose:** Natural standing pose, full body visible from head to toe.
+
+### GARMENT SPECIFICATIONS & LAYERING
+Analyze the provided garment images carefully. Apply them in the following order (from closest to body outward):
+
+{garment_section}
+
+### TEXTURE & FIDELITY CONSTRAINTS (CRITICAL)
+- **Texture Integrity:** Transfer colors, patterns, and materials EXACTLY as shown in source images.
+- **NO Hallucinations:** Do NOT add pinstripes, logos, patterns, embroidery, or any textures not visible in the source garment images.
+- **Color Accuracy:** Match exact color values from source garments.
+- **Sleeve Preservation:** Preserve EXACT sleeve lengths from source images. If source shows sleeveless/short sleeve, do NOT add or extend sleeves.
+- **Length Preservation:** Preserve EXACT garment lengths from source images. Trousers: maintain exact length. Tops: maintain exact length. Dresses: maintain exact length.
+- **Silhouette Preservation:** Maintain EXACT fit and silhouette - if oversized keep oversized, if fitted keep fitted, if wide-leg keep wide-leg.
+{styling_section}
+
+### OUTPUT REQUIREMENTS
+- Full body shot showing subject from head to toe
+- Background: Off-white studio (#fafafa). Lighting: Professional fashion editorial lighting that adds depth and dimension while preserving accurate garment colors.
+- All {num_items} garments clearly visible and accurate to source images
+- Photorealistic, high-fashion editorial quality result
+
+### EXECUTION
+Generate the final composite image showing the subject from Image 1 fully dressed in the specified items."""
+
     return prompt
 
 
 @router.post("/generate", response_model=VTOResponse)
 async def generate_vto(request: VTORequest):
-    """Generate virtual try-on image using Gemini 3 Pro Image"""
-    
     try:
         if len(request.garments) > 12:
             raise HTTPException(status_code=400, detail="Maximum 12 garments allowed")
-        
         if len(request.garments) == 0:
             raise HTTPException(status_code=400, detail="At least 1 garment required")
         
-        # Prepare model image
         model_part = base64_to_part(request.model_image_base64)
-        
-        # Prepare garment images
         garment_parts = [base64_to_part(g.image_base64) for g in request.garments]
+        prompt = build_prompt(request.garments, request.styling_notes)
         
-        # Build prompt
-        prompt = build_prompt(request.garments)
+        print("=" * 60)
+        print("VTO PROMPT (V2 IMPROVED):")
+        print("=" * 60)
+        print(prompt[:1000] + "..." if len(prompt) > 1000 else prompt)
+        print("=" * 60)
         
-        # Build contents: prompt, model image, then garments
         contents = [prompt, model_part] + garment_parts
-        
-        # Generate - NO temperature specified (defaults to 1.0 as Google recommends)
         response = client.models.generate_content(
             model="gemini-3-pro-image-preview",
             contents=contents,
             config={"response_modalities": ["image", "text"]}
         )
         
-        # Extract image from response
         for part in response.candidates[0].content.parts:
             if hasattr(part, 'inline_data') and part.inline_data:
-                # Convert to PNG for consistency
                 png_bytes = convert_to_png(part.inline_data.data)
                 result_base64 = base64.b64encode(png_bytes).decode('utf-8')
-                
                 return VTOResponse(
                     success=True,
                     image_base64=result_base64,
@@ -215,28 +218,18 @@ async def generate_vto(request: VTORequest):
                     cost_estimate=0.13
                 )
         
-        return VTOResponse(
-            success=False,
-            error="No image generated",
-            items_count=len(request.garments)
-        )
-        
+        return VTOResponse(success=False, error="No image generated", items_count=len(request.garments))
     except Exception as e:
-        return VTOResponse(
-            success=False,
-            error=str(e),
-            items_count=len(request.garments) if request.garments else 0
-        )
+        return VTOResponse(success=False, error=str(e), items_count=len(request.garments) if request.garments else 0)
 
 
 @router.get("/health")
 async def health_check():
-    """Health check endpoint"""
     return {
         "status": "healthy",
         "model": "gemini-3-pro-image-preview",
-        "location": "global",
+        "version": "v2-improved",
         "max_items": 12,
         "cost_per_image": 0.13,
-        "temperature": "default (1.0)"
+        "features": ["styling_notes", "hierarchical_layering", "fafafa_background"]
     }
