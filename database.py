@@ -170,6 +170,7 @@ class VTOJob(Base):
     error = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
+    styling_notes = Column(String, nullable=True)
 
 
 class SavedOutfit(Base):

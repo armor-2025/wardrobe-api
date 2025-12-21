@@ -2337,7 +2337,8 @@ async def generate_vto_from_wardrobe(
         # Call VTO
         vto_request = VTORequest(
             model_image_base64=model_base64,
-            garments=garments
+            garments=garments,
+                styling_notes=styling_notes
         )
         result = await generate_vto(vto_request)
         
@@ -2392,6 +2393,7 @@ async def generate_vto_debug(request: Request, authorization: str = Header(None)
 @app.post("/vto/generate-simple")
 async def generate_vto_simple(
     item_ids: str = Form(...),
+    styling_notes: str = Form(None),
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -2451,7 +2453,8 @@ async def generate_vto_simple(
         # Call VTO
         vto_request = VTORequest(
             model_image_base64=model_base64,
-            garments=garments
+            garments=garments,
+                styling_notes=styling_notes
         )
         result = await generate_vto(vto_request)
         
@@ -2474,7 +2477,7 @@ import asyncio
 from database import VTOJob, SavedOutfit
 
 # Background task to process VTO
-async def process_vto_job(job_id: str, user_id: int, item_ids: str):
+async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_notes: str = None):
     """Background task to generate VTO"""
     import httpx
     import base64
@@ -2536,7 +2539,8 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str):
             # Call VTO
             vto_request = VTORequest(
                 model_image_base64=model_base64,
-                garments=garments
+                garments=garments,
+                styling_notes=styling_notes
             )
             print(f"[VTO {job_id}] Calling Gemini...")
             t2 = time.time()
@@ -2580,6 +2584,7 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str):
 @app.post("/vto/submit")
 async def submit_vto_job(
     item_ids: str = Form(...),
+    styling_notes: str = Form(None),
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -2604,13 +2609,14 @@ async def submit_vto_job(
         user_id=user.id,
         status="pending",
         item_ids=clean_ids,
+        styling_notes=styling_notes,
         created_at=datetime.utcnow()
     )
     db.add(job)
     db.commit()
     
     # Start background task
-    asyncio.create_task(process_vto_job(job_id, user.id, clean_ids))
+    asyncio.create_task(process_vto_job(job_id, user.id, clean_ids, styling_notes))
     
     return {"job_id": job_id, "status": "pending"}
 
@@ -2683,6 +2689,7 @@ async def save_wardrobe_direct(
 @app.post("/vto/generate-sync")
 async def generate_vto_sync(
     item_ids: str = Form(...),
+    styling_notes: str = Form(None),
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -2710,7 +2717,7 @@ async def generate_vto_sync(
     db.commit()
     
     # Start processing in background
-    asyncio.create_task(process_vto_job(job_id, user.id, item_ids))
+    asyncio.create_task(process_vto_job(job_id, user.id, item_ids, styling_notes))
     
     # Poll for completion (max 60 seconds)
     for i in range(20):
