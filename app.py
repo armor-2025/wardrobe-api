@@ -3043,3 +3043,13 @@ async def login_debug(request: Request):
         "headers": headers,
         "content_type": headers.get('content-type')
     }
+
+@app.get("/migrate-styling-notes")
+def migrate_styling_notes(db: Session = Depends(get_db)):
+    """One-time migration to add styling_notes column"""
+    try:
+        db.execute(text("ALTER TABLE vto_jobs ADD COLUMN styling_notes VARCHAR"))
+        db.commit()
+        return {"success": True, "message": "Column added"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
