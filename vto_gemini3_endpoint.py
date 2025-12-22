@@ -144,11 +144,16 @@ def build_prompt(garments: List[GarmentItem], styling_notes: Optional[str] = Non
     
     styling_section = ""
     if styling_notes and styling_notes.strip():
+        styling_lower = styling_notes.lower()
+        extra_instruction = ""
+        if "button" in styling_lower or "zip" in styling_lower or "closed" in styling_lower or "done up" in styling_lower:
+            extra_instruction = "\n- **OUTERWEAR:** Must be fully CLOSED/BUTTONED/ZIPPED. Top underneath may be hidden - this is intentional."
+        
         styling_section = f"""
 
-### STYLING MODIFICATIONS
-- **User Request:** "{styling_notes.strip()}"
-- Apply these styling changes while maintaining garment accuracy."""
+### STYLING MODIFICATIONS (FOLLOW EXACTLY)
+- **User Request:** "{styling_notes.strip()}"{extra_instruction}
+- Apply these styling changes - they override default garment display."""
     
     prompt = f"""### SYSTEM TASK
 Perform a high-fidelity virtual try-on. Use Image 1 as the immutable identity reference. Synthesize the garments from Images 2-{num_items + 1} onto the subject in Image 1.
