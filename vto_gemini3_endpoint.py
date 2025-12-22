@@ -180,8 +180,8 @@ Analyze the provided garment images carefully. Apply them in the following order
 
 ### OUTPUT REQUIREMENTS
 - Generate exactly ONE single image (never multiple images or side-by-side comparisons)
-- Full body shot: Subject centered, head to toe visible, consistent medium distance framing (not close-up, not wide angle)
-- Composition: Subject fills approximately 70-80% of frame height, equal space above head and below feet
+- Full body shot: Subject centered, head to toe visible, TIGHT framing - subject fills the frame vertically, 50mm lens eye-level, NO wide angle
+- Composition: Subject fills approximately 95% of frame height, tight crop, equal space above head and below feet
 - Background: Pure off-white studio (#fafafa) with professional fashion editorial lighting
 - All {num_items} garments clearly visible and accurate to source images
 - Photorealistic, high-fashion editorial quality result
