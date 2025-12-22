@@ -3048,7 +3048,7 @@ async def login_debug(request: Request):
 def migrate_styling_notes(db: Session = Depends(get_db)):
     """One-time migration to add styling_notes column"""
     try:
-        db.execute(text("ALTER TABLE vto_jobs ADD COLUMN styling_notes VARCHAR"))
+        from sqlalchemy import text; db.execute(text("ALTER TABLE vto_jobs ADD COLUMN styling_notes VARCHAR"))
         db.commit()
         return {"success": True, "message": "Column added"}
     except Exception as e:
