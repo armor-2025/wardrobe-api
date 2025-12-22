@@ -119,9 +119,12 @@ def build_prompt(garments: List[GarmentItem], styling_notes: Optional[str] = Non
         else:
             action = " - Action: Worn CLOSED/ZIPPED/BUTTONED (no top underneath), maintain exact sleeve length and silhouette from source."
         if styling_notes:
-            if "roll" in styling_notes.lower() and "sleeve" in styling_notes.lower():
+            styling_lower = styling_notes.lower()
+            if "button" in styling_lower or "zip" in styling_lower or "closed" in styling_lower:
+                action = " - Action: Worn fully BUTTONED/ZIPPED CLOSED (even if top underneath - top may be partially hidden), maintain exact sleeve length and silhouette from source."
+            elif "roll" in styling_lower and "sleeve" in styling_lower:
                 action = " - Action: Roll sleeves up to elbows, worn open over base layer."
-            elif "drape" in styling_notes.lower() or "over the shoulders" in styling_notes.lower():
+            elif "drape" in styling_lower or "over the shoulders" in styling_lower:
                 action = " - Action: Draped over shoulders, not worn with arms in sleeves."
         garment_specs.append(f"{layer_num}. **Outer Layer:** [Image {item['index']}: {item['description']}]{action}")
         layer_num += 1
@@ -171,8 +174,10 @@ Analyze the provided garment images carefully. Apply them in the following order
 {styling_section}
 
 ### OUTPUT REQUIREMENTS
-- Full body shot showing subject from head to toe
-- Background: Off-white studio (#fafafa). Lighting: Professional fashion editorial lighting that adds depth and dimension while preserving accurate garment colors.
+- Generate exactly ONE single image (never multiple images or side-by-side comparisons)
+- Full body shot: Subject centered, head to toe visible, consistent medium distance framing (not close-up, not wide angle)
+- Composition: Subject fills approximately 70-80% of frame height, equal space above head and below feet
+- Background: Pure off-white studio (#fafafa) with professional fashion editorial lighting
 - All {num_items} garments clearly visible and accurate to source images
 - Photorealistic, high-fashion editorial quality result
 
