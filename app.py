@@ -2570,7 +2570,20 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
                     alpha_matting_background_threshold=10
                 )
                 
-                vto_url = upload_to_firebase(transparent_bytes, vto_path, content_type='image/png')
+                # Crop to content bounds - remove transparent padding
+                from PIL import Image
+                import io
+                img = Image.open(io.BytesIO(transparent_bytes))
+                bbox = img.getbbox()  # Get bounding box of non-transparent pixels
+                if bbox:
+                    img = img.crop(bbox)
+                
+                # Convert back to bytes
+                output_buffer = io.BytesIO()
+                img.save(output_buffer, format='PNG')
+                cropped_bytes = output_buffer.getvalue()
+                
+                vto_url = upload_to_firebase(cropped_bytes, vto_path, content_type='image/png')
                 
                 job.status = "complete"
                 job.vto_url = vto_url
