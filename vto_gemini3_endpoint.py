@@ -189,11 +189,16 @@ Analyze the provided garment images carefully. Apply them in the following order
 - **Silhouette Preservation:** Maintain EXACT fit and silhouette - if oversized keep oversized, if fitted keep fitted, if wide-leg keep wide-leg.
 {styling_section}
 
+### SPATIAL COMPOSITION (CRITICAL - DO NOT IGNORE)
+- **Framing:** Tight Full-Length Shot. Generate exactly ONE single image.
+- **Vertical Occupancy:** Subject MUST fill 95% of the frame height (Head-to-Toe).
+- **Vertical Anchoring:** Head positioned near TOP edge, shoe soles positioned near BOTTOM edge.
+- **Lens Profile:** 50mm portrait lens at eye-level. High-resolution garment detail.
+- **FORBIDDEN:** NO wide-angle distortion. NO excessive empty space. NO zoomed-out shots.
+
 ### OUTPUT REQUIREMENTS
-- Generate exactly ONE single image (never multiple images or side-by-side comparisons)
-- Full body shot: Subject centered, head to toe visible, TIGHT framing - subject fills the frame vertically, 50mm lens eye-level, NO wide angle
-- Composition: Subject fills approximately 95% of frame height, tight crop, equal space above head and below feet
 - Background: Pure off-white studio (#fafafa) with professional fashion editorial lighting
+- Sharp focus on garment textures (leather grain, fabric weave, stitching)
 - All {num_items} garments clearly visible and accurate to source images
 - Photorealistic, high-fashion editorial quality result
 
