@@ -700,6 +700,10 @@ def update_wardrobe_item(
 @app.get("/wardrobe/items")
 def get_wardrobe_items(
     authorization: str = Header(None),
+    category: str = Query(None),
+    color: str = Query(None),
+    brand: str = Query(None),
+    season: str = Query(None),
     db: Session = Depends(get_db)
 ):
     if not authorization or not authorization.startswith('Bearer '):
@@ -710,7 +714,18 @@ def get_wardrobe_items(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
     
-    items = db.query(WardrobeItem).filter(WardrobeItem.user_id == user.id).all()
+    query = db.query(WardrobeItem).filter(WardrobeItem.user_id == user.id)
+    
+    if category:
+        query = query.filter(WardrobeItem.category == category)
+    if color:
+        query = query.filter(WardrobeItem.color == color)
+    if brand:
+        query = query.filter(WardrobeItem.brand == brand)
+    if season:
+        query = query.filter(WardrobeItem.season == season)
+    
+    items = query.all()
     
     return {
         "items": [
