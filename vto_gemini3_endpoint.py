@@ -106,7 +106,7 @@ def build_prompt(garments: List[GarmentItem], styling_notes: Optional[str] = Non
     
     for item in layers["base"]:
         if coat_closed and len(layers["outer"]) > 0:
-            action = " - ROLE: HIDDEN UNDERLAYER. Provides body shape/bulk under coat but must be 100% occluded. Do NOT render this fabric visibly."
+            action = " - OCCLUDED by closed outerwear. Do not render."
         elif styling_notes and "crop" in styling_notes.lower() and "top" in item["description"].lower():
             action = " - Action: Crop the hem to show midriff as per styling notes."
         else:
@@ -157,8 +157,8 @@ def build_prompt(garments: List[GarmentItem], styling_notes: Optional[str] = Non
         extra_instruction = ""
         negative_constraints = ""
         if "button" in styling_lower or "zip" in styling_lower or "closed" in styling_lower or "done up" in styling_lower or "fasten" in styling_lower:
-            extra_instruction = "\n- **OUTERWEAR CLOSURE:** Front panels must OVERLAP completely. Mechanically fastened from bottom to top."
-            negative_constraints = "\n\n### NEGATIVE CONSTRAINTS (DO NOT)\n- DO NOT render a V-opening in the jacket/coat.\n- DO NOT show the undershirt/top fabric.\n- DO NOT leave any gap between coat lapels/panels."
+            extra_instruction = ""
+            negative_constraints = "\n\n### CONSTRAINTS\n- No V-opening in outerwear. No visible under-layers. No tiling/multiple people."
         
         styling_section = f"""
 
@@ -189,12 +189,10 @@ Analyze the provided garment images carefully. Apply them in the following order
 - **Silhouette Preservation:** Maintain EXACT fit and silhouette - if oversized keep oversized, if fitted keep fitted, if wide-leg keep wide-leg.
 {styling_section}
 
-### SPATIAL COMPOSITION (CRITICAL - DO NOT IGNORE)
-- **Framing:** Tight Full-Length Shot. Generate exactly ONE single image.
-- **Vertical Occupancy:** Subject MUST fill 95% of the frame height (Head-to-Toe).
-- **Vertical Anchoring:** Head positioned near TOP edge, shoe soles positioned near BOTTOM edge.
-- **Lens Profile:** 50mm portrait lens at eye-level. High-resolution garment detail.
-- **FORBIDDEN:** NO wide-angle distortion. NO excessive empty space. NO zoomed-out shots.
+### COMPOSITION (MANDATORY)
+- Single image. Portrait 9:16 aspect ratio.
+- Subject fills 95% vertical frame. Head near top edge, shoes near bottom edge.
+- 50mm lens, eye-level. No wide-angle distortion.
 
 ### OUTPUT REQUIREMENTS
 - Background: Pure off-white studio (#fafafa) with professional fashion editorial lighting
