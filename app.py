@@ -2578,6 +2578,13 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
                 if bbox:
                     img = img.crop(bbox)
                 
+                # Add vertical padding (3% of height top and bottom)
+                padding_v = int(img.height * 0.03)
+                new_height = img.height + (padding_v * 2)
+                padded = Image.new('RGBA', (img.width, new_height), (0, 0, 0, 0))
+                padded.paste(img, (0, padding_v))
+                img = padded
+                
                 # Convert back to bytes
                 output_buffer = io.BytesIO()
                 img.save(output_buffer, format='PNG')
