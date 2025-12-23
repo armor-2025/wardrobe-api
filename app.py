@@ -722,6 +722,8 @@ def get_wardrobe_items(
                 "fabric": item.fabric,
                 "pattern": item.pattern,
                 "style_tags": json.loads(item.style_tags) if item.style_tags else [],
+                "brand": item.brand,
+                "season": item.season,
                 "created_at": item.created_at.isoformat()
             }
             for item in items
