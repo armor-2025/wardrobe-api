@@ -234,6 +234,14 @@ Generate now."""
             bbox = img.getbbox()
             if bbox:
                 img = img.crop(bbox)
+            
+            # Add vertical padding (3% of height top and bottom)
+            padding_v = int(img.height * 0.03)
+            new_height = img.height + (padding_v * 2)
+            padded = Image.new('RGBA', (img.width, new_height), (0, 0, 0, 0))
+            padded.paste(img, (0, padding_v))
+            img = padded
+            
             crop_buffer = io.BytesIO()
             img.save(crop_buffer, format='PNG')
             avatar_cropped = crop_buffer.getvalue()
