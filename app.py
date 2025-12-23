@@ -2556,11 +2556,21 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
             if result.success and result.image_base64:
                 from avatar_endpoint import upload_to_firebase
                 from datetime import datetime
+                from rembg import remove
                 
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 vto_path = f"users/{user_id}/vto_{timestamp}.png"
                 image_bytes = base64.b64decode(result.image_base64)
-                vto_url = upload_to_firebase(image_bytes, vto_path, content_type='image/png')
+                
+                # Apply alpha matting for clean background removal
+                transparent_bytes = remove(
+                    image_bytes,
+                    alpha_matting=True,
+                    alpha_matting_foreground_threshold=240,
+                    alpha_matting_background_threshold=10
+                )
+                
+                vto_url = upload_to_firebase(transparent_bytes, vto_path, content_type='image/png')
                 
                 job.status = "complete"
                 job.vto_url = vto_url
