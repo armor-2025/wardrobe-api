@@ -226,7 +226,19 @@ Generate now."""
                 alpha_matting_foreground_threshold=240,
                 alpha_matting_background_threshold=10
             )
-            avatar_png = convert_to_png(avatar_nobg)
+            
+            # Crop to content bounds - remove transparent padding
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(avatar_nobg))
+            bbox = img.getbbox()
+            if bbox:
+                img = img.crop(bbox)
+            crop_buffer = io.BytesIO()
+            img.save(crop_buffer, format='PNG')
+            avatar_cropped = crop_buffer.getvalue()
+            
+            avatar_png = convert_to_png(avatar_cropped)
             
             # Upload avatar as PNG
             avatar_path = f"users/{user_id}/avatar_{timestamp}.png"
