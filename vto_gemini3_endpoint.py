@@ -72,15 +72,15 @@ def categorize_garments(garments: List[GarmentItem]) -> dict:
     for i, g in enumerate(garments, start=2):
         cat = g.category.lower()
         item = {"index": i, "description": g.description, "category": g.category}
-        if cat in ["top", "shirt", "blouse", "t-shirt", "tshirt", "sweater", "jumper", "hoodie", "bodysuit"]:
+        if cat in ["top", "tops", "shirt", "blouse", "t-shirt", "tshirt", "sweater", "jumper", "hoodie", "bodysuit"]:
             layers["base"].append(item)
-        elif cat in ["bottom", "trousers", "pants", "skirt", "shorts", "jeans"]:
+        elif cat in ["bottom", "bottoms", "trousers", "pants", "skirt", "shorts", "jeans"]:
             layers["bottom"].append(item)
         elif cat in ["dress", "jumpsuit", "romper"]:
             layers["dress"].append(item)
         elif cat in ["jacket", "coat", "outerwear", "blazer", "cardigan"]:
             layers["outer"].append(item)
-        elif cat in ["shoes", "boots", "trainers", "sneakers", "loafers", "heels", "sandals"]:
+        elif cat in ["shoes", "boots", "trainers", "sneakers", "loafers", "heels", "sandals", "footwear"]:
             layers["footwear"].append(item)
         else:
             layers["accessories"].append(item)
@@ -211,7 +211,7 @@ async def generate_vto(request: VTORequest):
         response = client.models.generate_content(
             model="gemini-3-pro-image-preview",
             contents=contents,
-            config={"response_modalities": ["image", "text"], "aspect_ratio": "9:16"}
+            config={"response_modalities": ["image", "text"]}
         )
         
         for part in response.candidates[0].content.parts:
