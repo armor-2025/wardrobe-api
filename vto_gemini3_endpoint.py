@@ -97,8 +97,17 @@ def build_prompt(garments: List[GarmentItem], styling_notes: Optional[str] = Non
     has_outerwear = len(layers["outer"]) > 0
     has_top = len(layers["base"]) > 0
     
+    # Check if coat should be closed (hiding top)
+    coat_closed = False
+    if styling_notes:
+        styling_lower = styling_notes.lower()
+        if "button" in styling_lower or "zip" in styling_lower or "closed" in styling_lower or "done up" in styling_lower or "fasten" in styling_lower:
+            coat_closed = True
+    
     for item in layers["base"]:
-        if styling_notes and "crop" in styling_notes.lower() and "top" in item["description"].lower():
+        if coat_closed and len(layers["outer"]) > 0:
+            action = " - ROLE: HIDDEN UNDERLAYER. Provides body shape/bulk under coat but must be 100% occluded. Do NOT render this fabric visibly."
+        elif styling_notes and "crop" in styling_notes.lower() and "top" in item["description"].lower():
             action = " - Action: Crop the hem to show midriff as per styling notes."
         else:
             action = " - Action: Maintain exact design, sleeve length, and fit from source."
@@ -146,14 +155,16 @@ def build_prompt(garments: List[GarmentItem], styling_notes: Optional[str] = Non
     if styling_notes and styling_notes.strip():
         styling_lower = styling_notes.lower()
         extra_instruction = ""
-        if "button" in styling_lower or "zip" in styling_lower or "closed" in styling_lower or "done up" in styling_lower:
-            extra_instruction = "\n- **OUTERWEAR:** Must be fully CLOSED/BUTTONED/ZIPPED. Top underneath may be hidden - this is intentional."
+        negative_constraints = ""
+        if "button" in styling_lower or "zip" in styling_lower or "closed" in styling_lower or "done up" in styling_lower or "fasten" in styling_lower:
+            extra_instruction = "\n- **OUTERWEAR CLOSURE:** Front panels must OVERLAP completely. Mechanically fastened from bottom to top."
+            negative_constraints = "\n\n### NEGATIVE CONSTRAINTS (DO NOT)\n- DO NOT render a V-opening in the jacket/coat.\n- DO NOT show the undershirt/top fabric.\n- DO NOT leave any gap between coat lapels/panels."
         
         styling_section = f"""
 
-### STYLING MODIFICATIONS (FOLLOW EXACTLY)
+### STYLING MODIFICATIONS (MANDATORY)
 - **User Request:** "{styling_notes.strip()}"{extra_instruction}
-- Apply these styling changes - they override default garment display."""
+- Apply these styling changes - they override default garment display.{negative_constraints}"""
     
     prompt = f"""### SYSTEM TASK
 Perform a high-fidelity virtual try-on. Use Image 1 as the immutable identity reference. Synthesize the garments from Images 2-{num_items + 1} onto the subject in Image 1.
