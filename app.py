@@ -410,20 +410,6 @@ def conversational_search(
     #     max_price=search_params.get("max_price")
     # )
     # products = []
-    # for item in data.get("products", []):
-    #     price_data = item.get("price", {}).get("current", {})
-        image_url = item.get("imageUrl", "")
-        if image_url and not image_url.startswith("http"):
-            image_url = f"https://{image_url}"
-        products.append({
-            "id": str(item.get("id", "")),
-            "title": item.get("name", ""),
-            "image": image_url,
-            "brand": item.get("brandName", ""),
-            "retailer": "ASOS",
-            "price": price_data.get("value", 0.0),
-        })
-    return {"results": products, "total": data.get("itemCount", 0), "parsed_query": parsed, "model_used": parsed.get("_model_used")}
 
 
 from fastapi.responses import StreamingResponse
