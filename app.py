@@ -353,23 +353,65 @@ def conversational_search(
     q: str = Query(..., description="Natural language search query"),
     limit: int = Query(20, ge=1, le=50)
 ):
+    """
+    AI-powered natural language fashion search.
+    Parses query with GPT, returns structured data + mock products for now.
+    """
     conv = get_conversational_service()
     parsed = conv.parse_query(q)
     search_params = conv.query_to_search_params(parsed)
     search_params["limit"] = limit
-    asos = get_asos_service()
+    print(f"DEBUG conversational: parsed = {parsed}")
     print(f"DEBUG conversational: search_params = {search_params}")
-    data = asos.search_products(
-        query=search_params.get("q", ""), 
-        limit=limit, 
-        country="US", 
-        currency="USD",
-        min_price=search_params.get("min_price"),
-        max_price=search_params.get("max_price")
-    )
-    products = []
-    for item in data.get("products", []):
-        price_data = item.get("price", {}).get("current", {})
+    
+    # Return parsed data + mock products (replace with real search later)
+    return {
+        "success": True,
+        "parsed_query": parsed,
+        "search_params": search_params,
+        "products": [
+            {
+                "id": "mock_1",
+                "name": f"Mock {parsed.get('category', 'Item')} - {parsed.get('color', 'Classic')}",
+                "price": parsed.get("max_price", 50) * 0.8 if parsed.get("max_price") else 49.99,
+                "image_url": "https://via.placeholder.com/300x400?text=Product+1",
+                "brand": parsed.get("brand", "Sample Brand"),
+                "url": "#"
+            },
+            {
+                "id": "mock_2", 
+                "name": f"Mock {parsed.get('category', 'Item')} - Style 2",
+                "price": parsed.get("max_price", 60) * 0.7 if parsed.get("max_price") else 59.99,
+                "image_url": "https://via.placeholder.com/300x400?text=Product+2",
+                "brand": "Another Brand",
+                "url": "#"
+            },
+            {
+                "id": "mock_3",
+                "name": f"Mock {parsed.get('category', 'Item')} - Premium",
+                "price": parsed.get("max_price", 80) * 0.9 if parsed.get("max_price") else 79.99,
+                "image_url": "https://via.placeholder.com/300x400?text=Product+3",
+                "brand": "Premium Brand",
+                "url": "#"
+            }
+        ],
+        "total_results": 3,
+        "message": "Mock data - connect retailer APIs for real products"
+    }
+    
+    # OLD CODE - uncomment when ASOS is ready:
+    # asos = get_asos_service()
+    # data = asos.search_products(
+    #     query=search_params.get("q", ""), 
+    #     limit=limit, 
+    #     country="US", 
+    #     currency="USD",
+    #     min_price=search_params.get("min_price"),
+    #     max_price=search_params.get("max_price")
+    # )
+    # products = []
+    # for item in data.get("products", []):
+    #     price_data = item.get("price", {}).get("current", {})
         image_url = item.get("imageUrl", "")
         if image_url and not image_url.startswith("http"):
             image_url = f"https://{image_url}"
