@@ -132,7 +132,7 @@ async def generate_avatar(
         photo_bytes = await photo.read()
         
         # Fix EXIF rotation from phone photos BEFORE processing
-        from PIL import ImageOps
+        from PIL import Image, ImageOps
         img = Image.open(io.BytesIO(photo_bytes))
         img = ImageOps.exif_transpose(img)
         if img.mode != 'RGB':
