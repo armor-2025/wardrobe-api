@@ -82,8 +82,10 @@ def upload_to_firebase(image_bytes: bytes, path: str, content_type: str = 'image
 
 
 def convert_to_png(image_bytes: bytes) -> bytes:
-    """Convert any image format to PNG for consistency"""
+    """Convert any image format to PNG for consistency, fixing EXIF rotation"""
+    from PIL import ImageOps
     img = Image.open(io.BytesIO(image_bytes))
+    img = ImageOps.exif_transpose(img)  # Fix rotation from phone photos
     if img.mode != 'RGBA':
         img = img.convert('RGBA')
     output = io.BytesIO()
