@@ -82,10 +82,8 @@ def upload_to_firebase(image_bytes: bytes, path: str, content_type: str = 'image
 
 
 def convert_to_png(image_bytes: bytes) -> bytes:
-    """Convert any image format to PNG for consistency, fixing EXIF rotation"""
-    from PIL import ImageOps
+    """Convert any image format to PNG for consistency"""
     img = Image.open(io.BytesIO(image_bytes))
-    img = ImageOps.exif_transpose(img)  # Fix rotation from phone photos
     if img.mode != 'RGBA':
         img = img.convert('RGBA')
     output = io.BytesIO()
@@ -132,15 +130,15 @@ async def generate_avatar(
         photo_bytes = await photo.read()
         
         # Fix EXIF rotation from phone photos BEFORE processing
-        from PIL import Image as PILImage, ImageOps
-        import io as io_module
-        img = PILImage.open(io_module.BytesIO(photo_bytes))
-        img = ImageOps.exif_transpose(img)
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        buffer = io_module.BytesIO()
-        img.save(buffer, format='JPEG', quality=95)
-        photo_bytes = buffer.getvalue()
+        from PIL import Image as PILImg, ImageOps
+        import io as io_mod
+        temp_img = PILImg.open(io_mod.BytesIO(photo_bytes))
+        temp_img = ImageOps.exif_transpose(temp_img)
+        if temp_img.mode != 'RGB':
+            temp_img = temp_img.convert('RGB')
+        temp_buffer = io_mod.BytesIO()
+        temp_img.save(temp_buffer, format='JPEG', quality=95)
+        photo_bytes = temp_buffer.getvalue()
         
         # Detect original format (keep original as-is)
         ext, mime_type = detect_image_format(photo_bytes)
@@ -239,27 +237,7 @@ Generate now."""
                 alpha_matting_foreground_threshold=240,
                 alpha_matting_background_threshold=10
             )
-            
-            # Crop to content bounds - remove transparent padding
-            from PIL import Image
-            import io
-            img = Image.open(io.BytesIO(avatar_nobg))
-            bbox = img.getbbox()
-            if bbox:
-                img = img.crop(bbox)
-            
-            # Add vertical padding (3% of height top and bottom)
-            padding_v = int(img.height * 0.03)
-            new_height = img.height + (padding_v * 2)
-            padded = Image.new('RGBA', (img.width, new_height), (0, 0, 0, 0))
-            padded.paste(img, (0, padding_v))
-            img = padded
-            
-            crop_buffer = io.BytesIO()
-            img.save(crop_buffer, format='PNG')
-            avatar_cropped = crop_buffer.getvalue()
-            
-            avatar_png = convert_to_png(avatar_cropped)
+            avatar_png = convert_to_png(avatar_nobg)
             
             # Upload avatar as PNG
             avatar_path = f"users/{user_id}/avatar_{timestamp}.png"
