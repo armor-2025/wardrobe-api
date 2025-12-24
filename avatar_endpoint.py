@@ -131,6 +131,16 @@ async def generate_avatar(
         # Read the uploaded file
         photo_bytes = await photo.read()
         
+        # Fix EXIF rotation from phone photos BEFORE processing
+        from PIL import ImageOps
+        img = Image.open(io.BytesIO(photo_bytes))
+        img = ImageOps.exif_transpose(img)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG', quality=95)
+        photo_bytes = buffer.getvalue()
+        
         # Detect original format (keep original as-is)
         ext, mime_type = detect_image_format(photo_bytes)
         
