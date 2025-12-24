@@ -2,6 +2,7 @@
 Gemini 3 Pro Image Virtual Try-On Endpoint - V2 IMPROVED
 Model: gemini-3-pro-image-preview
 With styling notes, better prompts, fafafa background
+Now with optional face closeup for better identity preservation
 """
 
 from fastapi import APIRouter, HTTPException
@@ -37,6 +38,7 @@ class GarmentItem(BaseModel):
 
 class VTORequest(BaseModel):
     model_image_base64: str
+    face_image_base64: Optional[str] = None  # NEW: Optional face closeup for better identity
     garments: List[GarmentItem]
     body_type: Optional[str] = "average"
     styling_notes: Optional[str] = None
@@ -65,11 +67,12 @@ def base64_to_part(b64_string: str) -> Part:
     return Part.from_bytes(data=image_bytes, mime_type="image/png")
 
 
-def categorize_garments(garments: List[GarmentItem]) -> dict:
+def categorize_garments(garments: List[GarmentItem], start_index: int = 2) -> dict:
+    """Categorize garments with configurable start index for image numbering"""
     layers = {
         "base": [], "bottom": [], "dress": [], "outer": [], "footwear": [], "accessories": []
     }
-    for i, g in enumerate(garments, start=2):
+    for i, g in enumerate(garments, start=start_index):
         cat = g.category.lower()
         item = {"index": i, "description": g.description, "category": g.category}
         if cat in ["top", "tops", "shirt", "blouse", "t-shirt", "tshirt", "sweater", "jumper", "hoodie", "bodysuit"]:
@@ -87,11 +90,19 @@ def categorize_garments(garments: List[GarmentItem]) -> dict:
     return layers
 
 
-def build_prompt(garments: List[GarmentItem], styling_notes: Optional[str] = None) -> str:
-    layers = categorize_garments(garments)
+def build_prompt(garments: List[GarmentItem], styling_notes: Optional[str] = None, has_face_closeup: bool = False) -> str:
+    # Adjust start index based on whether face closeup is provided
+    # With face closeup: Image 1 = body, Image 2 = face, Images 3+ = garments
+    # Without face closeup: Image 1 = body, Images 2+ = garments
+    garment_start_index = 3 if has_face_closeup else 2
+    
+    layers = categorize_garments(garments, start_index=garment_start_index)
     num_items = len(garments)
     garment_specs = []
     layer_num = 1
+    
+    # Calculate end index for garments
+    garment_end_index = garment_start_index + num_items - 1
     
     # Check if there's outerwear but no top
     has_outerwear = len(layers["outer"]) > 0
@@ -149,12 +160,24 @@ def build_prompt(garments: List[GarmentItem], styling_notes: Optional[str] = Non
 ### STYLING
 Apply: "{styling_notes.strip()}" """
     
-    prompt = f"""### SYSTEM TASK
-Perform a high-fidelity virtual try-on. Use Image 1 as the immutable identity reference. Synthesize the garments from Images 2-{num_items + 1} onto the subject in Image 1.
+    # NEW: Identity anchoring section for face closeup
+    identity_anchor = ""
+    face_instruction = ""
+    if has_face_closeup:
+        identity_anchor = """### IDENTITY REFERENCE (MANDATORY)
+- **Image 1 (Full Body):** Use as the source for body proportions, pose, and skin tone.
+- **Image 2 (Face Close-up):** Use as the PRIMARY source for all facial features, eye color, skin texture, and fine details.
+- **Instruction:** Synthesize the high-detail facial features from Image 2 onto the head of the subject from Image 1. The face MUST match Image 2 exactly.
+
+"""
+        face_instruction = " The face MUST match Image 2 (face closeup) exactly."
+    
+    prompt = f"""{identity_anchor}### SYSTEM TASK
+Perform a high-fidelity virtual try-on. Use Image 1 as the immutable identity reference. Synthesize the garments from Images {garment_start_index}-{garment_end_index} onto the subject in Image 1.
 
 ### IDENTITY PRESERVATION (CRITICAL)
 - **Subject:** Maintain the EXACT face, skin tone, hair texture, hair color, and body proportions of the person in Image 1.
-- **Face:** Keep EXACT original face with NO makeup, filters, or skin smoothing added.
+- **Face:** Keep EXACT original face with NO makeup, filters, or skin smoothing added.{face_instruction}
 - **Anatomy Check:** Ensure exactly TWO hands and TWO feet. No limb duplication or extra appendages.
 - **Pose:** Natural standing pose, full body visible from head to toe.
 
@@ -199,7 +222,15 @@ async def generate_vto(request: VTORequest):
         
         model_part = base64_to_part(request.model_image_base64)
         garment_parts = [base64_to_part(g.image_base64) for g in request.garments]
-        prompt = build_prompt(request.garments, request.styling_notes)
+        
+        # Check if face closeup provided
+        has_face_closeup = request.face_image_base64 is not None and len(request.face_image_base64) > 0
+        face_part = None
+        if has_face_closeup:
+            face_part = base64_to_part(request.face_image_base64)
+            print("📸 Using face closeup for enhanced identity preservation")
+        
+        prompt = build_prompt(request.garments, request.styling_notes, has_face_closeup)
         
         print("=" * 60)
         print("VTO PROMPT (V2 IMPROVED):")
@@ -207,7 +238,12 @@ async def generate_vto(request: VTORequest):
         print(prompt[:1000] + "..." if len(prompt) > 1000 else prompt)
         print("=" * 60)
         
-        contents = [prompt, model_part] + garment_parts
+        # Build contents in correct order
+        if has_face_closeup:
+            contents = [prompt, model_part, face_part] + garment_parts
+        else:
+            contents = [prompt, model_part] + garment_parts
+        
         response = client.models.generate_content(
             model="gemini-3-pro-image-preview",
             contents=contents,
@@ -238,5 +274,5 @@ async def health_check():
         "version": "v2-improved",
         "max_items": 12,
         "cost_per_image": 0.13,
-        "features": ["styling_notes", "hierarchical_layering", "fafafa_background"]
+        "features": ["styling_notes", "hierarchical_layering", "fafafa_background", "face_closeup_support"]
     }
