@@ -3,21 +3,24 @@ Avatar Generation Endpoint - V2 with Fly.io FaceSwap Worker
 Uses Gemini for generation, then calls Fly worker for face swap
 """
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header, Depends
 import base64
 import os
 import io
+import json
 import httpx
 from PIL import Image, ImageOps
 from rembg import remove
 from google import genai
 from google.genai.types import Part
 import firebase_admin
-from firebase_admin import credentials, storage, auth
+from firebase_admin import credentials, storage
+from sqlalchemy.orm import Session
+from database import get_db, User
+from app import get_current_user
+from datetime import datetime
 
 router = APIRouter(prefix="/avatar", tags=["Avatar"])
-security = HTTPBearer()
 
 # Fly.io FaceSwap Worker URL
 FACESWAP_WORKER_URL = "https://yow-faceswap.fly.dev"
@@ -34,22 +37,30 @@ if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON"):
 
 client = genai.Client()
 
-if not firebase_admin._apps:
-    firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
-    if firebase_creds_json:
-        import json
-        creds_dict = json.loads(firebase_creds_json)
-        cred = credentials.Certificate(creds_dict)
-        firebase_admin.initialize_app(cred, {'storageBucket': 'youronlinewardrobe-acc56.appspot.com'})
+
+def init_firebase():
+    """Initialize Firebase if not already done"""
+    if not firebase_admin._apps:
+        firebase_creds = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+        if firebase_creds:
+            creds_dict = json.loads(firebase_creds)
+            cred = credentials.Certificate(creds_dict)
+        else:
+            cred = credentials.ApplicationDefault()
+        
+        firebase_admin.initialize_app(cred, {
+            'storageBucket': os.environ.get('FIREBASE_STORAGE_BUCKET', 'your-online-wardrobe-jm85cl.firebasestorage.app')
+        })
 
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        token = credentials.credentials
-        decoded = auth.verify_id_token(token)
-        return decoded
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+def upload_to_firebase(image_bytes: bytes, path: str, content_type: str = 'image/png') -> str:
+    """Upload image to Firebase Storage and return public URL"""
+    init_firebase()
+    bucket = storage.bucket()
+    blob = bucket.blob(path)
+    blob.upload_from_string(image_bytes, content_type=content_type)
+    blob.make_public()
+    return blob.public_url
 
 
 def fix_image_rotation(image_bytes: bytes) -> bytes:
@@ -65,8 +76,8 @@ def fix_image_rotation(image_bytes: bytes) -> bytes:
 
 async def call_faceswap_worker(source_b64: str, target_b64: str) -> str:
     """Call Fly.io worker for face swap"""
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
+    async with httpx.AsyncClient(timeout=60.0) as http_client:
+        response = await http_client.post(
             f"{FACESWAP_WORKER_URL}/swap",
             json={
                 "source_image_base64": source_b64,
@@ -84,12 +95,23 @@ async def call_faceswap_worker(source_b64: str, target_b64: str) -> str:
 async def generate_avatar(
     photo: UploadFile = File(..., description="Full body photo"),
     face_photo: UploadFile = File(..., description="Face closeup photo"),
-    body_type: str = Form("average"),
-    height: str = Form("average"),
-    user_data: dict = Depends(verify_token)
+    body_type: str = Form(default="average"),
+    height: str = Form(default="average"),
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
 ):
     try:
-        user_id = user_data.get("uid")
+        # Auth check
+        if not authorization:
+            raise HTTPException(status_code=401, detail="Missing authorization header")
+        
+        token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+        user = get_current_user(db, token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        user_id = str(user.id)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Read and fix rotation on both photos
         body_bytes = await photo.read()
@@ -193,23 +215,21 @@ Generate now."""
         final_png = output.getvalue()
         
         # Step 6: Upload to Firebase
-        bucket = storage.bucket()
-        blob = bucket.blob(f"avatars/{user_id}/avatar.png")
-        blob.upload_from_string(final_png, content_type='image/png')
-        blob.make_public()
-        avatar_url = blob.public_url
+        avatar_path = f"users/{user_id}/avatar_{timestamp}.png"
+        avatar_url = upload_to_firebase(final_png, avatar_path, content_type='image/png')
         
         # Also save original photo
-        original_blob = bucket.blob(f"avatars/{user_id}/original.jpg")
-        original_blob.upload_from_string(body_bytes, content_type='image/jpeg')
-        original_blob.make_public()
-        original_url = original_blob.public_url
+        original_path = f"users/{user_id}/original_photo_{timestamp}.jpg"
+        original_url = upload_to_firebase(body_bytes, original_path, content_type='image/jpeg')
         
         # Save face photo too
-        face_blob = bucket.blob(f"avatars/{user_id}/face.jpg")
-        face_blob.upload_from_string(face_bytes, content_type='image/jpeg')
-        face_blob.make_public()
-        face_url = face_blob.public_url
+        face_path = f"users/{user_id}/face_photo_{timestamp}.jpg"
+        face_url = upload_to_firebase(face_bytes, face_path, content_type='image/jpeg')
+        
+        # Update user record
+        user.avatar_url = avatar_url
+        user.original_photo_url = original_url
+        db.commit()
         
         print(f"✅ Avatar generated: {avatar_url}")
         
@@ -230,25 +250,3 @@ Generate now."""
 @router.get("/health")
 async def health():
     return {"status": "healthy", "version": "v2-fly-worker"}
-
-
-# Helper functions used by app.py
-def init_firebase():
-    """Initialize Firebase if not already done"""
-    if not firebase_admin._apps:
-        firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
-        if firebase_creds_json:
-            import json
-            creds_dict = json.loads(firebase_creds_json)
-            cred = credentials.Certificate(creds_dict)
-            firebase_admin.initialize_app(cred, {'storageBucket': 'youronlinewardrobe-acc56.appspot.com'})
-
-
-def upload_to_firebase(image_bytes: bytes, path: str, content_type: str = "image/png") -> str:
-    """Upload image bytes to Firebase Storage and return public URL"""
-    init_firebase()
-    bucket = storage.bucket()
-    blob = bucket.blob(path)
-    blob.upload_from_string(image_bytes, content_type=content_type)
-    blob.make_public()
-    return blob.public_url
