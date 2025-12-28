@@ -3157,3 +3157,13 @@ def migrate_styling_notes(db: Session = Depends(get_db)):
 
 # from retail_search_endpoints import router as retail_search_router
 # app.include_router(retail_search_router)
+
+# TEMPORARY MIGRATION - DELETE AFTER USE
+@app.get("/migrate/add-face-photo-url")
+async def migrate_add_face_photo_url():
+    from database import engine
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS face_photo_url VARCHAR"))
+        conn.commit()
+    return {"success": True, "message": "face_photo_url column added"}
