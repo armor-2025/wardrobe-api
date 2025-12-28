@@ -20,6 +20,7 @@ class User(Base):
     # Profile fields
     original_photo_url = Column(String, nullable=True)  # Their uploaded photo
     avatar_url = Column(String, nullable=True)  # Gemini activewear version
+    face_photo_url = Column(String, nullable=True)  # Face closeup for VTO identity
     body_type = Column(String, default="average")  # slim, average, curvy, plus
     display_name = Column(String, nullable=True)
     

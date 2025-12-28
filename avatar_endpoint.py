@@ -247,6 +247,7 @@ Generate now."""
         
         # Update user record
         user.avatar_url = avatar_url
+        user.face_photo_url = face_url
         user.original_photo_url = original_url
         db.commit()
         

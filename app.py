@@ -2356,13 +2356,20 @@ async def generate_vto_from_wardrobe(
     if not user.original_photo_url:
         raise HTTPException(status_code=400, detail="No VTO photo uploaded. Please complete onboarding.")
     
+    if not user.face_photo_url:
+        raise HTTPException(status_code=400, detail="No face photo uploaded. Please regenerate your avatar.")
+    
     if not request.items:
         raise HTTPException(status_code=400, detail="No items selected")
     
     async with httpx.AsyncClient(timeout=60.0) as client:
-        # Fetch user's original photo
+        # Fetch user's original photo (body)
         resp = await client.get(user.original_photo_url)
         model_base64 = base64.b64encode(resp.content).decode('utf-8')
+        
+        # Fetch user's face closeup
+        resp = await client.get(user.face_photo_url)
+        face_base64 = base64.b64encode(resp.content).decode('utf-8')
         
         # Fetch garment images and build request
         garments = []
@@ -2375,9 +2382,10 @@ async def generate_vto_from_wardrobe(
                 description=description
             ))
         
-        # Call VTO
+        # Call VTO with face closeup for identity preservation
         vto_request = VTORequest(
             model_image_base64=model_base64,
+            face_image_base64=face_base64,
             garments=garments,
                 styling_notes=styling_notes
         )
@@ -2587,9 +2595,17 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
                     description=description
                 ))
             
-            # Call VTO
+            # Fetch user's face closeup
+            if user.face_photo_url:
+                resp = await client.get(user.face_photo_url)
+                face_base64 = base64.b64encode(resp.content).decode('utf-8')
+            else:
+                face_base64 = None
+            
+            # Call VTO with face closeup
             vto_request = VTORequest(
                 model_image_base64=model_base64,
+                face_image_base64=face_base64,
                 garments=garments,
                 styling_notes=styling_notes
             )
@@ -3138,3 +3154,6 @@ def migrate_styling_notes(db: Session = Depends(get_db)):
         return {"success": True, "message": "Column added"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+from retail_search_endpoints import router as retail_search_router
+app.include_router(retail_search_router)
