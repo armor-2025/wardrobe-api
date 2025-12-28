@@ -2984,7 +2984,7 @@ async def batch_upload(
         "queue_id": queue.queue_id,
         "total_images": len(image_urls),
         "processing_remaining": len(remaining_urls),
-        "first_item": {
+        "item": {
             "image_url": image_url,
             "category": first_item.category,
             "description": first_item.description,
