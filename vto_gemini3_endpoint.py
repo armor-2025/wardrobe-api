@@ -149,7 +149,7 @@ def build_prompt(garments: List[GarmentItem], styling_notes: Optional[str] = Non
         bag_action = ""
         if styling_notes and "bag" in styling_notes.lower() and "hand" in styling_notes.lower():
             bag_action = " Bag held in hand."
-        garment_specs.append(f"{layer_num}. **Accessories:** {acc_list} - Action: Natural placement on body.{bag_action}")
+        garment_specs.append(f"{layer_num}. **Accessories:** {acc_list} - Action: Natural placement on body. Maintain EXACT shape, frame thickness, and style from source image. Do NOT add any accessories not provided in source images.{bag_action}")
     
     garment_section = "\n".join(garment_specs)
     
