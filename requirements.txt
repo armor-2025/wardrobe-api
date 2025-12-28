@@ -24,3 +24,4 @@ google-genai>=1.0.0
 firebase-admin
 psycopg2-binary
 firebase-admin
+google-cloud-retail
