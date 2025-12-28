@@ -230,3 +230,25 @@ Generate now."""
 @router.get("/health")
 async def health():
     return {"status": "healthy", "version": "v2-fly-worker"}
+
+
+# Helper functions used by app.py
+def init_firebase():
+    """Initialize Firebase if not already done"""
+    if not firebase_admin._apps:
+        firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+        if firebase_creds_json:
+            import json
+            creds_dict = json.loads(firebase_creds_json)
+            cred = credentials.Certificate(creds_dict)
+            firebase_admin.initialize_app(cred, {'storageBucket': 'youronlinewardrobe-acc56.appspot.com'})
+
+
+def upload_to_firebase(image_bytes: bytes, path: str, content_type: str = "image/png") -> str:
+    """Upload image bytes to Firebase Storage and return public URL"""
+    init_firebase()
+    bucket = storage.bucket()
+    blob = bucket.blob(path)
+    blob.upload_from_string(image_bytes, content_type=content_type)
+    blob.make_public()
+    return blob.public_url
