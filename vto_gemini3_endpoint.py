@@ -178,6 +178,7 @@ Perform a high-fidelity virtual try-on. Use Image 1 as the immutable identity re
 ### IDENTITY PRESERVATION (CRITICAL)
 - **Subject:** Maintain the EXACT face, skin tone, hair texture, hair color, and body proportions of the person in Image 1.
 - **Face:** Keep EXACT original face with NO makeup, filters, or skin smoothing added.{face_instruction}
+- **Expression:** Match the EXACT expression from the face reference image. If source shows slight smile with few teeth, keep slight smile with few teeth. NO exaggerated smiles or full teeth grins unless shown in source.
 - **Anatomy Check:** Ensure exactly TWO hands and TWO feet. No limb duplication or extra appendages.
 - **Pose:** Natural standing pose, full body visible from head to toe.
 
