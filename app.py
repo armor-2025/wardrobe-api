@@ -3155,5 +3155,5 @@ def migrate_styling_notes(db: Session = Depends(get_db)):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-from retail_search_endpoints import router as retail_search_router
-app.include_router(retail_search_router)
+# from retail_search_endpoints import router as retail_search_router
+# app.include_router(retail_search_router)
