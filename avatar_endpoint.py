@@ -85,6 +85,7 @@ async def call_faceswap_worker(source_b64: str, target_b64: str) -> str:
             }
         )
         result = response.json()
+        print(f"🔄 Fly worker response: success={result.get('success')}, error={result.get('error')}")
         if result.get("success"):
             return result.get("result_image_base64")
         else:
@@ -115,9 +116,11 @@ async def generate_avatar(
         
         # Read and fix rotation on both photos
         body_bytes = await photo.read()
+        print(f"📷 Body photo size: {len(body_bytes)} bytes")
         body_bytes = fix_image_rotation(body_bytes)
         
         face_bytes = await face_photo.read()
+        print(f"📷 Face photo size: {len(face_bytes)} bytes")
         face_bytes = fix_image_rotation(face_bytes)
         
         body_b64 = base64.b64encode(body_bytes).decode('utf-8')
@@ -177,6 +180,12 @@ Generate now."""
         if not generated_bytes:
             raise HTTPException(status_code=500, detail="Failed to generate image")
         
+        print(f"✅ Gemini generated {len(generated_bytes)} bytes")
+        
+        # DEBUG: Save Gemini output
+        gemini_url = upload_to_firebase(generated_bytes, f"users/{user_id}/debug_1_gemini_{timestamp}.png", 'image/png')
+        print(f"🔍 DEBUG Gemini output: {gemini_url}")
+        
         generated_b64 = base64.b64encode(generated_bytes).decode('utf-8')
         
         # Step 2: Face swap via Fly worker
@@ -184,7 +193,12 @@ Generate now."""
         try:
             swapped_b64 = await call_faceswap_worker(face_b64, generated_b64)
             final_bytes = base64.b64decode(swapped_b64)
-            print("✅ Face swap successful")
+            print(f"✅ Face swap returned {len(final_bytes)} bytes")
+            
+            # DEBUG: Save face swap output
+            swap_url = upload_to_firebase(final_bytes, f"users/{user_id}/debug_2_faceswap_{timestamp}.png", 'image/png')
+            print(f"🔍 DEBUG Face swap output: {swap_url}")
+            
         except Exception as e:
             print(f"⚠️ Face swap failed: {e}, using Gemini output")
             final_bytes = generated_bytes
@@ -197,6 +211,11 @@ Generate now."""
             alpha_matting_foreground_threshold=240,
             alpha_matting_background_threshold=10
         )
+        print(f"✅ Background removed, {len(avatar_nobg)} bytes")
+        
+        # DEBUG: Save rembg output
+        rembg_url = upload_to_firebase(avatar_nobg, f"users/{user_id}/debug_3_rembg_{timestamp}.png", 'image/png')
+        print(f"🔍 DEBUG rembg output: {rembg_url}")
         
         # Step 4: Crop and pad
         img = Image.open(io.BytesIO(avatar_nobg))
@@ -249,4 +268,4 @@ Generate now."""
 
 @router.get("/health")
 async def health():
-    return {"status": "healthy", "version": "v2-fly-worker"}
+    return {"status": "healthy", "version": "v2-fly-worker-debug"}
