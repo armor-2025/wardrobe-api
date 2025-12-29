@@ -59,7 +59,7 @@ class VisionService:
                 {
                     "label": "jacket",  # Simple word for SAM segmentation
                     "description": "oversized denim trucker style",  # Fit/style details (NO color)
-                    "category": "outerwear",
+                    "category": "Outerwear",
                     "color": "blue"
                 },
                 ...
@@ -106,16 +106,16 @@ INCLUDE: Bags, scarves, belts, hats, glasses, sunglasses if visible
 EXCLUDE: Jewelry (necklaces, earrings, bracelets, rings, watches), socks, underwear, partially visible items
 
 EXAMPLES:
-Good: {"label": "jacket", "description": "denim trucker jacket", "color": "blue", "category": "outerwear"}
-Bad: {"label": "jacket", "description": "classic fit denim", "color": "blue", "category": "outerwear"}
+Good: {"label": "jacket", "description": "denim trucker jacket", "color": "blue", "category": "Outerwear"}
+Bad: {"label": "jacket", "description": "classic fit denim", "color": "blue", "category": "Outerwear"}
 
-Good: {"label": "pants", "description": "wide leg drawstring trousers", "color": "black", "category": "bottoms"}
-Bad: {"label": "pants", "description": "wide leg drawstring", "color": "black", "category": "bottoms"}
+Good: {"label": "pants", "description": "wide leg drawstring trousers", "color": "black", "category": "Bottoms"}
+Bad: {"label": "pants", "description": "wide leg drawstring", "color": "black", "category": "Bottoms"}
 
-Good: {"label": "shirt", "description": "graphic print t-shirt", "color": "white", "category": "tops"}
-Bad: {"label": "shirt", "description": "crew neck graphic print", "color": "white", "category": "tops"}
+Good: {"label": "shirt", "description": "graphic print t-shirt", "color": "white", "category": "Tops"}
+Bad: {"label": "shirt", "description": "crew neck graphic print", "color": "white", "category": "Tops"}
 
-Good: {"label": "shirt", "description": "longsleeve oxford shirt", "color": "blue", "category": "tops"}
+Good: {"label": "shirt", "description": "longsleeve oxford shirt", "color": "blue", "category": "Tops"}
 Good: {"label": "dress", "description": "longsleeve midi wrap dress", "color": "green", "category": "dresses"}
 
 Return ONLY valid JSON, no other text."""
