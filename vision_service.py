@@ -82,7 +82,7 @@ Return ONLY a JSON object:
       "label": "simple item name for AI segmentation (e.g., 'jacket', 't-shirt', 'jeans', 'sneakers', 'dress')",
       "description": "fit and style details WITHOUT color (e.g., 'oversized denim trucker', 'graphic print crew neck', 'wide-leg drawstring', 'low-top suede')",
       "category": "MUST be one of: Outerwear, Tops, Bottoms, Dresses, Footwear, Accessories",
-      "color": "MUST be one of: Yellow, Blue, Navy, Beige, White, Bordeaux, Khaki, Coral, Ecru, Grey, Lavender, Magenta, Brown, Purple, Mustard, Orange, Black, Red, Pink, Turquoise, Green, Emerald Green, Baby Blue, Hot Pink, Light Green, Light Pink, Light Yellow, Neon Green, Neon Orange, Neon Yellow, Copper, Denim, Gold, Silver, Black Denim, Multicolour, Neon Blue, No Colour"
+      "color": "MUST be one of: Yellow, Blue, Navy, Beige, White, Bordeaux, Khaki, Coral, Ecru, Grey, Lavender, Magenta, Brown, Purple, Mustard, Orange, Black, Red, Pink, Turquoise, Green, Emerald Green, Baby Blue, Hot Pink, Light Green, Light Pink, Light Yellow, Neon Green, Neon Orange, Neon Yellow, Copper, Indigo, Gold, Silver, Black Indigo, Multicolour, Neon Blue, No Colour"
     }
   ]
 }
