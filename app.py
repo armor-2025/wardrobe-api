@@ -2990,7 +2990,7 @@ async def batch_upload(
             "description": first_item.description,
             "color": first_item.color
         },
-        "queue_length": queue.total_items
+        "total_items": queue.total_items + len(remaining_urls)
     }
 
 
