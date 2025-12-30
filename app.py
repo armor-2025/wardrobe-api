@@ -1631,7 +1631,7 @@ async def upload_wardrobe_smart(
         raise HTTPException(status_code=400, detail="Could not segment any items from outfit")
     
     # Create queue
-    queue = create_queue(user.id, queued_items)
+    queue = create_queue(user.id, queued_items, processing_remaining=len(remaining_urls))
     
     # Upload first item to Firebase and return it
     first_item = queue.get_current()
@@ -1708,12 +1708,23 @@ async def save_and_next_item(
     next_queued = queue.advance()
     
     if not next_queued:
-        delete_queue(queue_id)
-        return {
-            "saved_item_id": item.id,
-            "has_next": False,
-            "next_item": None
-        }
+        # Check if background processing is still running
+        if queue.processing_remaining > 0:
+            # Wait for more items (up to 10 seconds)
+            import asyncio
+            for _ in range(10):
+                await asyncio.sleep(1)
+                next_queued = queue.get_current()
+                if next_queued:
+                    break
+        
+        if not next_queued:
+            delete_queue(queue_id)
+            return {
+                "saved_item_id": item.id,
+                "has_next": False,
+                "next_item": None
+            }
     
     # Upload next item to Firebase
     from avatar_endpoint import upload_to_firebase
@@ -1759,8 +1770,19 @@ async def skip_item(
     next_queued = queue.advance()
     
     if not next_queued:
-        delete_queue(queue_id)
-        return {"has_next": False, "next_item": None}
+        # Check if background processing is still running
+        if queue.processing_remaining > 0:
+            # Wait for more items (up to 10 seconds)
+            import asyncio
+            for _ in range(10):
+                await asyncio.sleep(1)
+                next_queued = queue.get_current()
+                if next_queued:
+                    break
+        
+        if not next_queued:
+            delete_queue(queue_id)
+            return {"has_next": False, "next_item": None}
     
     # Upload next item to Firebase
     from avatar_endpoint import upload_to_firebase
@@ -2965,7 +2987,7 @@ async def batch_upload(
         raise HTTPException(status_code=400, detail="Could not process first image")
     
     # Create queue with first image items
-    queue = create_queue(user.id, queued_items)
+    queue = create_queue(user.id, queued_items, processing_remaining=len(remaining_urls))
     
     # Upload first item to Firebase
     first_item = queue.get_current()
@@ -3070,6 +3092,10 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
             del file_bytes
             import gc
             gc.collect()
+            
+            # Decrement processing counter
+            if queue:
+                queue.processing_remaining = max(0, queue.processing_remaining - 1)
             
             # Small delay between images
             await asyncio.sleep(0.5)

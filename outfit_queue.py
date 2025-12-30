@@ -20,6 +20,7 @@ class UploadQueue:
     items: List[QueuedItem]
     current_index: int = 0
     created_at: datetime = field(default_factory=datetime.now)
+    processing_remaining: int = 0  # Track background images still processing
     
     @property
     def total_items(self) -> int:
@@ -28,6 +29,10 @@ class UploadQueue:
     @property
     def has_next(self) -> bool:
         return self.current_index < len(self.items)
+    
+    @property
+    def is_processing(self) -> bool:
+        return self.processing_remaining > 0
     
     def get_current(self) -> Optional[QueuedItem]:
         if self.has_next:
@@ -42,13 +47,14 @@ class UploadQueue:
 # In-memory queue storage (replace with Redis for production)
 _queues: Dict[str, UploadQueue] = {}
 
-def create_queue(user_id: int, items: List[QueuedItem]) -> UploadQueue:
+def create_queue(user_id: int, items: List[QueuedItem], processing_remaining: int = 0) -> UploadQueue:
     """Create a new upload queue"""
     queue_id = str(uuid.uuid4())
     queue = UploadQueue(
         queue_id=queue_id,
         user_id=user_id,
-        items=items
+        items=items,
+        processing_remaining=processing_remaining
     )
     _queues[queue_id] = queue
     
