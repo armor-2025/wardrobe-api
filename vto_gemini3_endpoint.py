@@ -248,11 +248,7 @@ async def generate_vto(request: VTORequest):
         response = client.models.generate_content(
             model="gemini-3-pro-image-preview",
             contents=contents,
-            config={
-                "response_modalities": ["image", "text"],
-                "thinking_level": "high",
-                "image_config": {"media_resolution": "high"}
-            }
+            config={"response_modalities": ["image", "text"]}
         )
         
         for part in response.candidates[0].content.parts:
