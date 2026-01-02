@@ -2618,7 +2618,7 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
                 ))
             
             # Fetch user's face closeup
-            if False and user.face_photo_url:  # TEMP DISABLED
+            if user.face_photo_url:
                 resp = await client.get(user.face_photo_url)
                 face_base64 = base64.b64encode(resp.content).decode('utf-8')
             else:
