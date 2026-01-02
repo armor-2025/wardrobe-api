@@ -165,9 +165,11 @@ Apply: "{styling_notes.strip()}" """
     face_instruction = ""
     if has_face_closeup:
         identity_anchor = """### IDENTITY REFERENCE (MANDATORY)
-- **Image 1 (Full Body):** Use as the source for body proportions, pose, and skin tone.
-- **Image 2 (Face Close-up):** Use as the PRIMARY source for all facial features, eye color, skin texture, and fine details.
+- **Image 1 (Full Body):** MASTER BODY TEMPLATE. Use as the source for body proportions, pose, and skin tone. DO NOT change the body proportions from Image 1.
+- **Image 2 (Face Close-up):** Use ONLY to refine the facial details onto the head of the person in Image 1. Do NOT use Image 2 for body or pose.
 - **Instruction:** Synthesize the high-detail facial features from Image 2 onto the head of the subject from Image 1. The face MUST match Image 2 exactly.
+
+**IDENTITY LOCK: ABSOLUTE.** Prioritize pixel data from Image 2 for FACE ONLY. Prioritize pixel data from Images 3+ for GARMENTS ONLY. Suppress all internal generic model templates.
 
 """
         face_instruction = " The face MUST match Image 2 (face closeup) exactly."
