@@ -172,7 +172,14 @@ Apply: "{styling_notes.strip()}" """
 """
         face_instruction = " The face MUST match Image 2 (face closeup) exactly."
     
-    prompt = f"""{identity_anchor}### SYSTEM TASK
+    prompt = f"""{identity_anchor}### VISUAL AUDIT (MANDATORY FIRST STEP)
+Before generating, analyze each garment image:
+1. Identify the specific fabric texture, pattern, and color of each garment in Images {garment_start_index}-{garment_end_index}.
+2. Note any logos, buttons, zippers, or unique details that must be preserved.
+3. Plan how each garment layer will be rendered with 100% texture fidelity.
+Only after completing this audit, proceed to generation.
+
+### SYSTEM TASK
 Perform a high-fidelity virtual try-on. Use Image 1 as the immutable identity reference. Synthesize the garments from Images {garment_start_index}-{garment_end_index} onto the subject in Image 1.
 
 ### IDENTITY PRESERVATION (CRITICAL)
