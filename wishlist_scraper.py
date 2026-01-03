@@ -1,10 +1,13 @@
 """
-Universal Wishlist - Tiered Product Extraction
+Universal Wishlist - Tiered Product Extraction with SAM3 Segmentation
 1. Schema.org JSON-LD (best)
 2. Open Graph meta tags (fallback)
 3. Manual upload/edit (last resort)
 
 Images are cached to Firebase (no hotlinking)
+- image_original_url: Full retailer image with model (for VTO)
+- image_url: SAM3 segmented garment only (for canvas)
+
 Prices stored as snapshots with timestamp
 """
 
@@ -25,6 +28,9 @@ from firebase_admin import credentials, storage
 import uuid
 from urllib.parse import urlparse
 from datetime import datetime
+import numpy as np
+import cv2
+import httpx
 
 # Initialize Firebase if not already done
 def init_firebase():
@@ -52,6 +58,10 @@ HEADERS = {
     'Accept-Language': 'en-US,en;q=0.5',
 }
 
+# SAM3 API config
+ROBOFLOW_API_KEY = os.getenv('ROBOFLOW_API_KEY')
+SAM3_API_URL = "https://serverless.roboflow.com/sam3/concept_segment"
+
 
 class WishlistAddRequest(BaseModel):
     url: Optional[str] = None
@@ -62,13 +72,13 @@ class WishlistAddRequest(BaseModel):
     category: Optional[str] = None
     user_id: str
     notes: Optional[str] = None
-    remove_bg: bool = True  # Toggle background removal
+    remove_bg: bool = True  # Toggle background removal (now uses SAM3)
 
 
 class WishlistAddResponse(BaseModel):
     success: bool
-    image_url: Optional[str] = None  # Cached Firebase URL (with bg removed if requested)
-    image_original_url: Optional[str] = None  # Original cached image (no bg removal)
+    image_url: Optional[str] = None  # SAM3 segmented garment (for canvas)
+    image_original_url: Optional[str] = None  # Original image with model (for VTO)
     title: Optional[str] = None
     price: Optional[str] = None
     currency: Optional[str] = None
@@ -79,8 +89,126 @@ class WishlistAddResponse(BaseModel):
     price_snapshot_date: Optional[str] = None
     extraction_method: Optional[str] = None  # schema_org, open_graph, heuristic, manual
     capture_method: Optional[str] = None  # url, upload, url+upload
+    segmentation_method: Optional[str] = None  # sam3, rembg, none
     needs_user_input: bool = False  # True if extraction failed - return partial data for editing
     error: Optional[str] = None
+
+
+def map_to_sam_prompt(product_title: str, category: str = None) -> str:
+    """
+    Map product info to SAM3 text prompt
+    Uses simple category words that SAM3 understands well
+    """
+    text = (product_title or "").lower() + " " + (category or "").lower()
+    
+    # Check for specific garment types
+    if any(word in text for word in ['jean', 'trouser', 'pant', 'short', 'skirt', 'chino', 'jogger', 'legging']):
+        return 'bottoms'
+    elif any(word in text for word in ['dress', 'jumpsuit', 'romper', 'playsuit']):
+        return 'dress'
+    elif any(word in text for word in ['jacket', 'coat', 'blazer', 'cardigan', 'gilet', 'vest', 'parka', 'bomber']):
+        return 'jacket'
+    elif any(word in text for word in ['shirt', 'blouse', 'polo']):
+        return 'shirt'
+    elif any(word in text for word in ['sweater', 'hoodie', 'jumper', 'knit', 'sweatshirt', 'pullover', 'fleece']):
+        return 'sweater'
+    elif any(word in text for word in ['t-shirt', 'tee', 'top', 'tank', 'cami', 'vest']):
+        return 'top'
+    elif any(word in text for word in ['shoe', 'sneaker', 'boot', 'heel', 'loafer', 'trainer', 'sandal', 'pump']):
+        return 'shoes'
+    elif any(word in text for word in ['hat', 'cap', 'beanie', 'beret']):
+        return 'hat'
+    elif any(word in text for word in ['bag', 'purse', 'handbag', 'tote', 'clutch', 'backpack']):
+        return 'bag'
+    elif any(word in text for word in ['scarf', 'tie', 'belt', 'glove']):
+        return 'accessory'
+    elif any(word in text for word in ['sunglasses', 'glasses', 'eyewear']):
+        return 'sunglasses'
+    elif any(word in text for word in ['watch', 'bracelet', 'necklace', 'ring', 'earring', 'jewel']):
+        return 'jewelry'
+    else:
+        # Default - try to segment any garment
+        return 'garment'
+
+
+async def segment_with_sam3(image_bytes: bytes, text_prompt: str) -> Optional[bytes]:
+    """
+    Use SAM3 to segment a specific item from an image using text prompt
+    Returns the segmented image as PNG bytes, or None if failed
+    """
+    if not ROBOFLOW_API_KEY:
+        print("  ⚠️ No ROBOFLOW_API_KEY - skipping SAM3 segmentation")
+        return None
+    
+    try:
+        print(f"  🎯 SAM3 segmenting: '{text_prompt}'")
+        
+        # Encode image
+        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+        
+        payload = {
+            "image": {
+                "type": "base64",
+                "value": image_b64
+            },
+            "prompts": [
+                {"type": "text", "text": text_prompt}
+            ]
+        }
+        
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{SAM3_API_URL}?api_key={ROBOFLOW_API_KEY}",
+                json=payload
+            )
+            response.raise_for_status()
+            result = response.json()
+        
+        # Parse SAM3 response - get the mask
+        if not result.get('outputs') or len(result['outputs']) == 0:
+            print("  ⚠️ SAM3 returned no outputs")
+            return None
+        
+        # Get the first output (best match)
+        output = result['outputs'][0]
+        
+        # Check if we have mask data
+        if 'mask' not in output:
+            print("  ⚠️ SAM3 output has no mask")
+            return None
+        
+        # Decode the mask
+        mask_b64 = output['mask']
+        mask_bytes = base64.b64decode(mask_b64)
+        
+        # Load original image and mask
+        original = Image.open(BytesIO(image_bytes)).convert('RGBA')
+        mask = Image.open(BytesIO(mask_bytes)).convert('L')
+        
+        # Resize mask to match original if needed
+        if mask.size != original.size:
+            mask = mask.resize(original.size, Image.LANCZOS)
+        
+        # Apply mask as alpha channel
+        original.putalpha(mask)
+        
+        # Crop to bounding box (remove transparent edges)
+        bbox = original.getbbox()
+        if bbox:
+            original = original.crop(bbox)
+        
+        # Save as PNG
+        buffer = BytesIO()
+        original.save(buffer, format='PNG', optimize=True)
+        
+        print(f"  ✅ SAM3 segmentation complete")
+        return buffer.getvalue()
+        
+    except Exception as e:
+        print(f"  ❌ SAM3 error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def extract_schema_org(soup: BeautifulSoup) -> dict:
@@ -250,8 +378,8 @@ def download_image(url: str, base_url: str = None) -> bytes:
     return response.content
 
 
-def remove_background(image_bytes: bytes) -> bytes:
-    """Remove background using rembg"""
+def remove_background_rembg(image_bytes: bytes) -> bytes:
+    """Fallback: Remove background using rembg (simple removal, keeps model)"""
     output = remove(image_bytes)
     
     img = Image.open(BytesIO(output))
@@ -311,10 +439,13 @@ async def add_wishlist_item(request: WishlistAddRequest):
     3. Heuristic extraction
     4. Manual upload fallback
     
-    Supports:
-    - URL only: auto-extract image/title/price
-    - Image only: manual upload
-    - URL + Image: use uploaded image with URL as source link
+    Images processed with:
+    - SAM3 text-prompted segmentation (extracts garment only)
+    - Fallback to rembg if SAM3 fails
+    
+    Two images saved:
+    - image_original_url: Full image with model (for VTO)
+    - image_url: Segmented garment only (for canvas)
     """
     try:
         # Handle FlutterFlow sending "null" string instead of actual null
@@ -329,6 +460,7 @@ async def add_wishlist_item(request: WishlistAddRequest):
         if request.price and str(request.price).lower() == "null":
             request.price = None
             price = None
+            
         image_bytes = None
         title = request.title if request.title else None
         price = request.price if request.price else None
@@ -338,6 +470,7 @@ async def add_wishlist_item(request: WishlistAddRequest):
         retailer = None
         extraction_method = None
         capture_method = None
+        segmentation_method = None
         source_url = request.url
         
         # Determine capture method
@@ -509,21 +642,42 @@ async def add_wishlist_item(request: WishlistAddRequest):
                 error="Please provide a URL or upload an image"
             )
         
-        # Process the image
+        # ==========================================
+        # PROCESS IMAGE: Save original + Segment garment
+        # ==========================================
+        
+        # Step 1: Save original to Firebase (for VTO - keeps model)
         print("☁️ Caching original to Firebase...")
         original_png = save_original(image_bytes)
         original_url = upload_to_firebase(original_png, request.user_id, "original")
         
-        cutout_url = original_url
+        # Step 2: Segment garment (for canvas - garment only)
+        cutout_url = original_url  # Default to original if segmentation disabled/fails
+        
         if request.remove_bg:
-            print("🎨 Removing background...")
-            try:
-                processed_image = remove_background(image_bytes)
-                cutout_url = upload_to_firebase(processed_image, request.user_id, "cutout")
-                print(f"✅ Cutout cached")
-            except Exception as e:
-                print(f"⚠️ Background removal failed: {e}, using original")
-                cutout_url = original_url
+            # Determine SAM3 prompt from product title/category
+            sam_prompt = map_to_sam_prompt(title, category)
+            print(f"🎯 Segmenting with SAM3 prompt: '{sam_prompt}'")
+            
+            # Try SAM3 first
+            segmented_image = await segment_with_sam3(image_bytes, sam_prompt)
+            
+            if segmented_image:
+                segmentation_method = "sam3"
+                cutout_url = upload_to_firebase(segmented_image, request.user_id, "cutout")
+                print(f"✅ SAM3 cutout cached")
+            else:
+                # Fallback to rembg (removes bg but keeps model)
+                print("  ⚠️ SAM3 failed, falling back to rembg...")
+                try:
+                    processed_image = remove_background_rembg(image_bytes)
+                    segmentation_method = "rembg"
+                    cutout_url = upload_to_firebase(processed_image, request.user_id, "cutout")
+                    print(f"✅ rembg cutout cached")
+                except Exception as e:
+                    print(f"⚠️ rembg also failed: {e}, using original")
+                    segmentation_method = "none"
+                    cutout_url = original_url
         
         print(f"✅ Done!")
         
@@ -540,7 +694,8 @@ async def add_wishlist_item(request: WishlistAddRequest):
             source_url=source_url,
             price_snapshot_date=datetime.utcnow().isoformat(),
             extraction_method=extraction_method,
-            capture_method=capture_method
+            capture_method=capture_method,
+            segmentation_method=segmentation_method
         )
         
     except Exception as e:
@@ -559,5 +714,12 @@ async def health_check():
     return {
         "status": "healthy",
         "extraction_tiers": ["schema_org", "open_graph", "heuristic", "manual"],
-        "features": ["image_caching", "background_removal_toggle", "price_snapshot", "partial_data_on_failure"]
+        "segmentation": ["sam3", "rembg_fallback"],
+        "features": [
+            "image_caching",
+            "sam3_garment_segmentation",
+            "dual_image_storage",
+            "price_snapshot",
+            "partial_data_on_failure"
+        ]
     }
