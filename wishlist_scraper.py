@@ -317,9 +317,21 @@ async def add_wishlist_item(request: WishlistAddRequest):
     - URL + Image: use uploaded image with URL as source link
     """
     try:
+        # Handle FlutterFlow sending "null" string instead of actual null
+        if request.url and str(request.url).lower() == "null":
+            request.url = None
+            source_url = None
+        if request.image_base64 and str(request.image_base64).lower() == "null":
+            request.image_base64 = None
+        if request.title and str(request.title).lower() == "null":
+            request.title = None
+            title = None
+        if request.price and str(request.price).lower() == "null":
+            request.price = None
+            price = None
         image_bytes = None
-        title = request.title
-        price = request.price
+        title = request.title if request.title else None
+        price = request.price if request.price else None
         currency = request.currency
         category = request.category
         brand = None
