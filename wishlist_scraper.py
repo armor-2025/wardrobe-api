@@ -28,28 +28,19 @@ from datetime import datetime
 
 # Initialize Firebase if not already done
 def init_firebase():
+    """Initialize Firebase if not already done - uses FIREBASE_CREDENTIALS_JSON"""
     if not firebase_admin._apps:
-        cred_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
-        if cred_json:
-            cred_path = "/tmp/firebase_creds.json"
-            with open(cred_path, "w") as f:
-                f.write(cred_json)
-            cred = credentials.Certificate(cred_path)
+        firebase_creds = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+        if firebase_creds:
+            import json
+            creds_dict = json.loads(firebase_creds)
+            cred = credentials.Certificate(creds_dict)
         else:
-            cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-            if cred_path and os.path.exists(cred_path):
-                cred = credentials.Certificate(cred_path)
-            else:
-                cred = None
+            cred = credentials.ApplicationDefault()
         
-        if cred:
-            firebase_admin.initialize_app(cred, {
-                'storageBucket': 'your-online-wardrobe-jm85cl.firebasestorage.app'
-            })
-        else:
-            firebase_admin.initialize_app(options={
-                'storageBucket': 'your-online-wardrobe-jm85cl.firebasestorage.app'
-            })
+        firebase_admin.initialize_app(cred, {
+            'storageBucket': os.environ.get('FIREBASE_STORAGE_BUCKET', 'your-online-wardrobe-jm85cl.firebasestorage.app')
+        })
 
 init_firebase()
 
