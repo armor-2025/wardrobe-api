@@ -16,13 +16,42 @@ from bs4 import BeautifulSoup
 import json
 import re
 import base64
+import os
 from rembg import remove
 from PIL import Image
 from io import BytesIO
-from firebase_admin import storage
+import firebase_admin
+from firebase_admin import credentials, storage
 import uuid
 from urllib.parse import urlparse
 from datetime import datetime
+
+# Initialize Firebase if not already done
+def init_firebase():
+    if not firebase_admin._apps:
+        cred_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+        if cred_json:
+            cred_path = "/tmp/firebase_creds.json"
+            with open(cred_path, "w") as f:
+                f.write(cred_json)
+            cred = credentials.Certificate(cred_path)
+        else:
+            cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+            if cred_path and os.path.exists(cred_path):
+                cred = credentials.Certificate(cred_path)
+            else:
+                cred = None
+        
+        if cred:
+            firebase_admin.initialize_app(cred, {
+                'storageBucket': 'your-online-wardrobe-jm85cl.firebasestorage.app'
+            })
+        else:
+            firebase_admin.initialize_app(options={
+                'storageBucket': 'your-online-wardrobe-jm85cl.firebasestorage.app'
+            })
+
+init_firebase()
 
 router = APIRouter(prefix="/wishlist", tags=["Wishlist"])
 
