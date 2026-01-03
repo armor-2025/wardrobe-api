@@ -47,6 +47,7 @@ from stock_checker import get_stock_checker
 
 from fastapi import File, UploadFile
 from vto_gemini3_endpoint import router as vto_gemini3_router
+from wishlist_scraper import router as wishlist_router
 import shutil
 from avatar_endpoint import router as avatar_router
 import uuid
@@ -156,6 +157,7 @@ def prepare_canvas_image(favorite_id: int):
 app = FastAPI()
 from fastapi.staticfiles import StaticFiles
 app.include_router(vto_gemini3_router)
+app.include_router(wishlist_router)
 
 app.include_router(avatar_router)
 # Serve uploaded files
