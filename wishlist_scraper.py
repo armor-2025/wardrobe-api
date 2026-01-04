@@ -730,9 +730,17 @@ async def add_wishlist_item(
         original_url = request.image_original_url or request.image_url
         cutout_url = request.image_url
         
-        # If we only have original image (product card), process for canvas
-        if original_url and not request.image_url:
-            print(f"🖼️ Processing image for canvas...")
+        # Check if we need to process the image:
+        # 1. Only original provided (product card)
+        # 2. Both URLs are the same (unprocessed screenshot)
+        needs_processing = (
+            (original_url and not request.image_url) or
+            (request.image_url and request.image_original_url and 
+             request.image_url == request.image_original_url)
+        )
+        
+        if needs_processing and original_url:
+            print(f"🖼️ Processing image for canvas (screenshot or product card)...")
             image_bytes = download_image(original_url)
             if image_bytes:
                 sam_prompt = map_to_sam_prompt(
@@ -740,12 +748,14 @@ async def add_wishlist_item(
                     category=None,
                     source_url=request.source_url
                 )
+                print(f"🎯 SAM prompt: '{sam_prompt}'")
                 
                 segmented = await segment_with_sam3(image_bytes, sam_prompt)
                 if segmented:
                     cutout_url = upload_to_firebase(segmented, "wishlist_cutouts")
                     print(f"✅ SAM3 cutout created")
                 else:
+                    print(f"⚠️ SAM3 failed, trying rembg...")
                     try:
                         pil_img = Image.open(BytesIO(image_bytes))
                         removed = remove(pil_img)
