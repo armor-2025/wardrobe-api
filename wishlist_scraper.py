@@ -208,7 +208,7 @@ async def segment_with_sam3(image_bytes: bytes, text_prompt: str) -> Optional[by
                 params={"api_key": ROBOFLOW_API_KEY},
                 json={
                     "image": {"type": "base64", "value": image_b64},
-                    "prompts": [text_prompt]
+                    "prompts": [{"type": "text", "text": text_prompt}]
                 }
             )
         
