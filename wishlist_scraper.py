@@ -30,7 +30,6 @@ from urllib.parse import urlparse
 from datetime import datetime
 import numpy as np
 import cv2
-import httpx
 
 # Initialize Firebase if not already done
 def init_firebase():
@@ -58,9 +57,7 @@ HEADERS = {
     'Accept-Language': 'en-US,en;q=0.5',
 }
 
-# SAM3 API config
-ROBOFLOW_API_KEY = os.getenv('ROBOFLOW_API_KEY')
-SAM3_API_URL = "https://serverless.roboflow.com/sam3/concept_segment"
+# Note: SAM3 segmentation uses sam3_service.py (same as ItemSorter)
 
 
 class WishlistAddRequest(BaseModel):
@@ -189,34 +186,23 @@ def map_to_sam_prompt(product_title: str = None, category: str = None, source_ur
 
 
 # ============== SAM3 SEGMENTATION ==============
+# Import the working SAM3 service used by ItemSorter
+from sam3_service import get_sam3_service
 
 async def segment_with_sam3(image_bytes: bytes, text_prompt: str) -> Optional[bytes]:
-    """Use SAM3 API to segment garment from image using text prompt"""
-    if not ROBOFLOW_API_KEY:
-        print("⚠️ ROBOFLOW_API_KEY not set, skipping SAM3")
-        return None
-    
+    """Use SAM3 to segment garment from image using text prompt - uses same service as ItemSorter"""
     try:
         print(f"🎯 SAM3 segmenting with prompt: '{text_prompt}'")
         
-        # Convert to base64
-        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+        # Use the same SAM3 service that works for ItemSorter
+        sam3 = get_sam3_service()
+        seg_result = await sam3.segment_item(image_bytes, text_prompt)
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                SAM3_API_URL,
-                params={"api_key": ROBOFLOW_API_KEY},
-                json={
-                    "image": {"type": "base64", "value": image_b64},
-                    "prompts": [{"type": "text", "text": text_prompt}]
-                }
-            )
-        
-        if response.status_code != 200:
-            print(f"❌ SAM3 API error: {response.status_code} - {response.text}")
+        if not seg_result.get("success"):
+            print(f"❌ SAM3 failed: {seg_result.get('error', 'unknown error')}")
             return None
         
-        result = response.json()
+        result = seg_result.get("result", {})
         
         # Get mask from response
         if not result.get('outputs') or not result['outputs']:
