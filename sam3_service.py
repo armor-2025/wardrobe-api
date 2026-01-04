@@ -1,6 +1,10 @@
 """
 SAM 3 Service - Clothing Segmentation using Roboflow SAM 3 API
 Text-prompt based segmentation for outfit extraction
+
+UPDATED: Fixed prompt format per Roboflow docs
+- Prompts should be {"text": "item"} not {"type": "text", "text": "item"}
+- Added format parameter for mask output
 """
 import os
 import httpx
@@ -24,15 +28,20 @@ class SAM3Service:
             # Send original image to SAM - it returns coordinates in original image space
             image_b64 = base64.b64encode(image_data).decode('utf-8')
             
+            # FIXED: Correct prompt format per Roboflow docs
+            # Should be {"text": "item"} NOT {"type": "text", "text": "item"}
             payload = {
+                "format": "polygon",  # Request polygon format for masks
                 "image": {
                     "type": "base64",
                     "value": image_b64
                 },
                 "prompts": [
-                    {"type": "text", "text": text_prompt}
+                    {"text": text_prompt}  # FIXED: removed "type" field
                 ]
             }
+            
+            print(f"  📤 SAM3 request: prompt='{text_prompt}'")
             
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
@@ -42,7 +51,18 @@ class SAM3Service:
                 response.raise_for_status()
                 result = response.json()
             
-            # Add original and resized dimensions to result for scaling
+            # Log response structure for debugging
+            if "prompt_results" in result:
+                pr = result["prompt_results"]
+                if pr and len(pr) > 0:
+                    preds = pr[0].get("predictions", [])
+                    print(f"  📥 SAM3 response: {len(preds)} predictions found")
+                else:
+                    print(f"  📥 SAM3 response: no prompt_results")
+            elif "outputs" in result:
+                print(f"  📥 SAM3 response (legacy): {len(result.get('outputs', []))} outputs")
+            else:
+                print(f"  📥 SAM3 response keys: {list(result.keys())}")
             
             return {"success": True, "prompt": text_prompt, "result": result}
             

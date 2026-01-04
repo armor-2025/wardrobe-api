@@ -194,6 +194,29 @@ async def segment_with_sam3(image_bytes: bytes, text_prompt: str) -> Optional[by
     try:
         print(f"🎯 SAM3 segmenting with prompt: '{text_prompt}'")
         
+        # Preprocess image - ensure RGB JPEG format for best SAM compatibility
+        original_img = None
+        try:
+            img = Image.open(BytesIO(image_bytes))
+            original_size = img.size
+            print(f"📐 Image size: {original_size}, mode: {img.mode}")
+            
+            # Keep original for later use
+            original_img = img.copy()
+            
+            # Convert to RGB (SAM struggles with RGBA, P, L modes)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+                print(f"🔄 Converted to RGB")
+            
+            # Re-encode as JPEG for consistency
+            output = BytesIO()
+            img.save(output, format='JPEG', quality=95)
+            image_bytes = output.getvalue()
+            print(f"📦 Preprocessed image: {len(image_bytes)} bytes")
+        except Exception as preprocess_error:
+            print(f"⚠️ Preprocessing failed, using original: {preprocess_error}")
+        
         # Use the same SAM3 service that works for ItemSorter
         sam3 = get_sam3_service()
         seg_result = await sam3.segment_item(image_bytes, text_prompt)
@@ -204,36 +227,100 @@ async def segment_with_sam3(image_bytes: bytes, text_prompt: str) -> Optional[by
         
         result = seg_result.get("result", {})
         
-        # Get mask from response
-        if not result.get('outputs') or not result['outputs']:
-            print("❌ SAM3 returned no outputs")
+        # Handle NEW response format (prompt_results with polygons)
+        polygon = None
+        if "prompt_results" in result:
+            prompt_results = result.get("prompt_results", [])
+            if prompt_results and len(prompt_results) > 0:
+                predictions = prompt_results[0].get("predictions", [])
+                if predictions and len(predictions) > 0:
+                    masks = predictions[0].get("masks", [])
+                    if masks and len(masks) > 0:
+                        polygon = masks[0]  # Array of [x, y] points
+                        print(f"✅ SAM3 found polygon with {len(polygon)} points")
+        
+        # Handle OLD response format (outputs with base64 mask) as fallback
+        if polygon is None and "outputs" in result:
+            outputs = result.get("outputs", [])
+            if outputs and len(outputs) > 0:
+                mask_data = outputs[0].get("mask")
+                if mask_data:
+                    print(f"📦 SAM3 using legacy mask format")
+                    # Decode mask
+                    mask_bytes = base64.b64decode(mask_data)
+                    mask_img = Image.open(BytesIO(mask_bytes)).convert('L')
+                    
+                    # Load original image
+                    if original_img is None:
+                        original_img = Image.open(BytesIO(image_bytes))
+                    original_rgba = original_img.convert('RGBA')
+                    
+                    # Resize mask to match original if needed
+                    if mask_img.size != original_rgba.size:
+                        mask_img = mask_img.resize(original_rgba.size, Image.LANCZOS)
+                    
+                    # Apply mask as alpha channel
+                    mask_array = np.array(mask_img)
+                    original_array = np.array(original_rgba)
+                    original_array[:, :, 3] = mask_array
+                    
+                    # Find bounding box and crop
+                    coords = np.argwhere(mask_array > 128)
+                    if len(coords) == 0:
+                        print("❌ SAM3 mask is empty")
+                        return None
+                    
+                    y0, x0 = coords.min(axis=0)
+                    y1, x1 = coords.max(axis=0)
+                    
+                    # Add small padding
+                    padding = 10
+                    y0 = max(0, y0 - padding)
+                    x0 = max(0, x0 - padding)
+                    y1 = min(original_array.shape[0], y1 + padding)
+                    x1 = min(original_array.shape[1], x1 + padding)
+                    
+                    cropped = original_array[y0:y1, x0:x1]
+                    result_img = Image.fromarray(cropped)
+                    
+                    # Save to bytes
+                    output = BytesIO()
+                    result_img.save(output, format='PNG')
+                    output.seek(0)
+                    
+                    print(f"✅ SAM3 segmentation successful (legacy): {result_img.size}")
+                    return output.getvalue()
+        
+        if polygon is None:
+            print("❌ SAM3 returned no usable mask data")
+            print(f"   Response keys: {list(result.keys())}")
             return None
         
-        mask_data = result['outputs'][0].get('mask')
-        if not mask_data:
-            print("❌ SAM3 returned no mask")
-            return None
+        # Process polygon format - convert to mask and apply
+        if original_img is None:
+            original_img = Image.open(BytesIO(image_bytes))
         
-        # Decode mask
-        mask_bytes = base64.b64decode(mask_data)
-        mask_img = Image.open(BytesIO(mask_bytes)).convert('L')
+        width, height = original_img.size
+        original_rgba = original_img.convert('RGBA')
         
-        # Load original image
-        original_img = Image.open(BytesIO(image_bytes)).convert('RGBA')
+        # Create mask from polygon
+        mask_img = Image.new('L', (width, height), 0)
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(mask_img)
         
-        # Resize mask to match original if needed
-        if mask_img.size != original_img.size:
-            mask_img = mask_img.resize(original_img.size, Image.LANCZOS)
+        # Convert polygon points to tuples
+        poly_points = [(int(p[0]), int(p[1])) for p in polygon]
+        draw.polygon(poly_points, fill=255)
         
         # Apply mask as alpha channel
         mask_array = np.array(mask_img)
-        original_array = np.array(original_img)
+        original_array = np.array(original_rgba)
         original_array[:, :, 3] = mask_array
         
         # Find bounding box and crop
         coords = np.argwhere(mask_array > 128)
         if len(coords) == 0:
-            print("❌ SAM3 mask is empty")
+            print("❌ SAM3 polygon mask is empty")
             return None
         
         y0, x0 = coords.min(axis=0)
