@@ -9,9 +9,11 @@ Images are cached to Firebase (no hotlinking)
 - image_url: SAM3 segmented garment only (for canvas)
 
 Prices stored as snapshots with timestamp
+
+NOW SAVES TO POSTGRESQL (favorites table) instead of returning data for Firestore
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 import requests
@@ -30,6 +32,28 @@ from urllib.parse import urlparse
 from datetime import datetime
 import numpy as np
 import cv2
+from sqlalchemy.orm import Session
+
+# Database imports
+from database import get_db, Favorite
+
+# Auth helper - same as used in app.py
+import jwt
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+
+def get_current_user(db: Session, token: str):
+    """Validate JWT token and return user"""
+    from database import User
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get("user_id")
+        if not user_id:
+            return None
+        return db.query(User).filter(User.id == user_id).first()
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
 
 # Initialize Firebase if not already done
 def init_firebase():
@@ -61,35 +85,53 @@ HEADERS = {
 
 
 class WishlistAddRequest(BaseModel):
-    url: Optional[str] = None
-    image_url: Optional[str] = None  # Direct image URL (for manual upload flow)
-    image_base64: Optional[str] = None  # Manual image upload
-    title: Optional[str] = None  # Manual override
-    price: Optional[str] = None  # Manual override
-    currency: Optional[str] = None
-    category: Optional[str] = None
-    user_id: str
-    notes: Optional[str] = None
-    remove_bg: bool = True  # Toggle background removal (now uses SAM3)
+    """Request to save item to wishlist (after scraping or from product card)"""
+    # Product info - from scrape response or product card
+    title: Optional[str] = None
+    price: Optional[str] = None  # String to handle currency symbols
+    brand: Optional[str] = None
+    retailer: Optional[str] = None
+    
+    # Images - from scrape response or product card
+    image_url: Optional[str] = None  # Cutout/canvas image
+    image_original_url: Optional[str] = None  # Original image (for VTO)
+    
+    # Source
+    source_url: Optional[str] = None  # Product URL
+    product_id: Optional[str] = None  # External product ID (for API products)
 
 
 class WishlistAddResponse(BaseModel):
     success: bool
+    id: Optional[int] = None  # Database ID
     image_url: Optional[str] = None  # Segmented cutout (for canvas)
     image_original_url: Optional[str] = None  # Original with model (for VTO)
     title: Optional[str] = None
-    price: Optional[str] = None
+    price: Optional[float] = None  # Changed to float
     currency: Optional[str] = None
     category: Optional[str] = None
     brand: Optional[str] = None
     retailer: Optional[str] = None
     source_url: Optional[str] = None
     price_snapshot_date: Optional[str] = None
-    extraction_method: Optional[str] = None  # schema_org, open_graph, heuristic, manual
-    capture_method: Optional[str] = None  # url_scrape, manual_upload
+    extraction_method: Optional[str] = None  # schema_org, open_graph, heuristic, manual, api_product
+    capture_method: Optional[str] = None  # url_scrape, manual_upload, product_card
     segmentation_method: Optional[str] = None  # sam3, rembg, none
     error: Optional[str] = None
     needs_user_input: bool = False
+
+
+class WishlistItemResponse(BaseModel):
+    """Response model for wishlist items"""
+    id: int
+    title: Optional[str]
+    price: Optional[float]
+    brand: Optional[str]
+    retailer: Optional[str]
+    image_url: Optional[str]  # Original image
+    canvas_image_url: Optional[str]  # Segmented cutout
+    product_url: Optional[str]
+    created_at: str
 
 
 # ============== URL KEYWORD EXTRACTION ==============
@@ -522,197 +564,131 @@ def get_retailer_from_url(url: str) -> str:
     return domain.split('.')[0].capitalize()
 
 
-# ============== MAIN ENDPOINT ==============
+# ============== SCRAPE ENDPOINT (preview only, no save) ==============
 
-@router.post("/add", response_model=WishlistAddResponse)
-async def add_wishlist_item(request: WishlistAddRequest):
+class ScrapeResponse(BaseModel):
+    """Response from scraping - for preview before saving"""
+    success: bool
+    image_url: Optional[str] = None  # Segmented cutout
+    image_original_url: Optional[str] = None  # Original image
+    title: Optional[str] = None
+    price: Optional[str] = None  # Keep as string for display
+    currency: Optional[str] = None
+    category: Optional[str] = None
+    brand: Optional[str] = None
+    retailer: Optional[str] = None
+    source_url: Optional[str] = None
+    extraction_method: Optional[str] = None
+    segmentation_method: Optional[str] = None
+    error: Optional[str] = None
+
+
+@router.post("/scrape", response_model=ScrapeResponse)
+async def scrape_product_url(
+    url: str,
+    remove_bg: bool = True
+):
     """
-    Add item to wishlist with tiered extraction:
-    1. Schema.org JSON-LD (best)
-    2. Open Graph meta tags
-    3. Heuristic extraction
-    4. Manual upload fallback
-    
-    Supports:
-    - URL only: auto-extract image/title/price
-    - Direct image URL: process existing Firebase image
-    - Image base64: manual upload
+    Scrape product URL and return data for preview.
+    Does NOT save to database - user can edit before saving.
     """
     try:
-        title = request.title
-        price = request.price
-        currency = request.currency
-        category = request.category
+        print(f"🔍 Scraping URL: {url}")
+        
+        title = None
+        price = None
+        currency = None
+        category = None
         brand = None
-        retailer = None
-        source_url = request.url
+        retailer = get_retailer_from_url(url)
         image_url = None
-        image_bytes = None
+        original_url = None
+        cutout_url = None
         extraction_method = "manual"
-        capture_method = "manual_upload"
         segmentation_method = "none"
         
-        # ===== PATH 1: Direct image URL (from Upload Screenshot) =====
-        if request.image_url:
-            print(f"📸 Processing direct image URL: {request.image_url[:50]}...")
-            capture_method = "direct_image"
+        # Fetch page
+        response = requests.get(url, headers=HEADERS, timeout=15)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Try extraction methods in order
+        schema_data = extract_from_schema_org(soup)
+        if schema_data.get('title') or schema_data.get('image'):
+            extraction_method = "schema_org"
+            title = schema_data.get('title')
+            price = schema_data.get('price')
+            currency = schema_data.get('currency')
+            brand = schema_data.get('brand')
+            category = schema_data.get('category')
+            image_url = schema_data.get('image')
+            print(f"✅ Schema.org extraction: {title}")
+        
+        if not (title and image_url):
+            og_data = extract_from_open_graph(soup)
+            if og_data.get('title') or og_data.get('image'):
+                extraction_method = extraction_method if extraction_method != "manual" else "open_graph"
+                title = title or og_data.get('title')
+                price = price or og_data.get('price')
+                currency = currency or og_data.get('currency')
+                brand = brand or og_data.get('brand')
+                image_url = image_url or og_data.get('image')
+                print(f"✅ Open Graph extraction: {title}")
+        
+        if not (title and image_url):
+            heuristic_data = extract_from_heuristics(soup, url)
+            if heuristic_data:
+                extraction_method = extraction_method if extraction_method != "manual" else "heuristic"
+                title = title or heuristic_data.get('title')
+                price = price or heuristic_data.get('price')
+                image_url = image_url or heuristic_data.get('image')
+                print(f"✅ Heuristic extraction: {title}")
+        
+        # Download and process image
+        if image_url:
+            if image_url.startswith('//'):
+                image_url = 'https:' + image_url
+            elif image_url.startswith('/'):
+                parsed = urlparse(url)
+                image_url = f"{parsed.scheme}://{parsed.netloc}{image_url}"
             
-            # Download image from Firebase URL
-            image_bytes = download_image(request.image_url)
+            print(f"📥 Downloading image: {image_url[:80]}...")
+            image_bytes = download_image(image_url)
             
-            if image_bytes and request.remove_bg:
-                # Get SAM prompt from URL or use generic
-                sam_prompt = map_to_sam_prompt(
-                    product_title=title,
-                    category=category,
-                    source_url=source_url
-                )
+            if image_bytes:
+                original_url = upload_to_firebase(image_bytes, "wishlist_originals")
+                print(f"✅ Original uploaded: {original_url[:50]}...")
                 
-                # Try SAM3 segmentation
-                segmented = await segment_with_sam3(image_bytes, sam_prompt)
-                if segmented:
-                    cutout_url = upload_to_firebase(segmented, "wishlist_cutouts")
-                    segmentation_method = "sam3"
+                if remove_bg:
+                    sam_prompt = map_to_sam_prompt(
+                        product_title=title,
+                        category=category,
+                        source_url=url
+                    )
+                    print(f"🎯 SAM prompt: '{sam_prompt}'")
+                    
+                    segmented = await segment_with_sam3(image_bytes, sam_prompt)
+                    if segmented:
+                        cutout_url = upload_to_firebase(segmented, "wishlist_cutouts")
+                        segmentation_method = "sam3"
+                        print(f"✅ SAM3 cutout: {cutout_url[:50]}...")
+                    else:
+                        print("⚠️ SAM3 failed, trying rembg...")
+                        try:
+                            pil_img = Image.open(BytesIO(image_bytes))
+                            removed = remove(pil_img)
+                            output = BytesIO()
+                            removed.save(output, format='PNG')
+                            cutout_url = upload_to_firebase(output.getvalue(), "wishlist_cutouts")
+                            segmentation_method = "rembg"
+                            print(f"✅ Rembg cutout: {cutout_url[:50]}...")
+                        except Exception as e:
+                            print(f"❌ Rembg also failed: {e}")
+                            cutout_url = original_url
+                            segmentation_method = "none"
                 else:
-                    # Fallback to rembg
-                    try:
-                        pil_img = Image.open(BytesIO(image_bytes))
-                        removed = remove(pil_img)
-                        output = BytesIO()
-                        removed.save(output, format='PNG')
-                        cutout_url = upload_to_firebase(output.getvalue(), "wishlist_cutouts")
-                        segmentation_method = "rembg"
-                    except:
-                        cutout_url = request.image_url
-                        segmentation_method = "none"
-            else:
-                cutout_url = request.image_url
-            
-            return WishlistAddResponse(
-                success=True,
-                image_url=cutout_url,
-                image_original_url=request.image_url,
-                title=title,
-                price=price,
-                currency=currency,
-                category=category,
-                brand=brand,
-                retailer=retailer or "Manual Upload",
-                source_url=source_url,
-                price_snapshot_date=datetime.utcnow().isoformat(),
-                extraction_method=extraction_method,
-                capture_method=capture_method,
-                segmentation_method=segmentation_method
-            )
+                    cutout_url = original_url
         
-        # ===== PATH 2: URL scraping =====
-        if request.url:
-            print(f"🔍 Scraping URL: {request.url}")
-            capture_method = "url_scrape"
-            source_url = request.url
-            retailer = get_retailer_from_url(request.url)
-            
-            # Fetch page
-            response = requests.get(request.url, headers=HEADERS, timeout=15)
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Try extraction methods in order
-            schema_data = extract_from_schema_org(soup)
-            if schema_data.get('title') or schema_data.get('image'):
-                extraction_method = "schema_org"
-                title = title or schema_data.get('title')
-                price = price or schema_data.get('price')
-                currency = currency or schema_data.get('currency')
-                brand = schema_data.get('brand')
-                category = category or schema_data.get('category')
-                image_url = schema_data.get('image')
-                print(f"✅ Schema.org extraction: {title}")
-            
-            if not (title and image_url):
-                og_data = extract_from_open_graph(soup)
-                if og_data.get('title') or og_data.get('image'):
-                    extraction_method = extraction_method if extraction_method != "manual" else "open_graph"
-                    title = title or og_data.get('title')
-                    price = price or og_data.get('price')
-                    currency = currency or og_data.get('currency')
-                    brand = brand or og_data.get('brand')
-                    image_url = image_url or og_data.get('image')
-                    print(f"✅ Open Graph extraction: {title}")
-            
-            if not (title and image_url):
-                heuristic_data = extract_from_heuristics(soup, request.url)
-                if heuristic_data:
-                    extraction_method = extraction_method if extraction_method != "manual" else "heuristic"
-                    title = title or heuristic_data.get('title')
-                    price = price or heuristic_data.get('price')
-                    image_url = image_url or heuristic_data.get('image')
-                    print(f"✅ Heuristic extraction: {title}")
-            
-            # Download and process image
-            if image_url:
-                # Make URL absolute if needed
-                if image_url.startswith('//'):
-                    image_url = 'https:' + image_url
-                elif image_url.startswith('/'):
-                    parsed = urlparse(request.url)
-                    image_url = f"{parsed.scheme}://{parsed.netloc}{image_url}"
-                
-                print(f"📥 Downloading image: {image_url[:80]}...")
-                image_bytes = download_image(image_url)
-        
-        # ===== PATH 3: Base64 image upload =====
-        elif request.image_base64:
-            print("📸 Processing base64 image upload")
-            capture_method = "manual_upload"
-            image_bytes = base64.b64decode(request.image_base64)
-        
-        # ===== Process image =====
-        if image_bytes:
-            # Upload original to Firebase first
-            original_url = upload_to_firebase(image_bytes, "wishlist_originals")
-            print(f"✅ Original uploaded: {original_url[:50]}...")
-            
-            if request.remove_bg:
-                # Get SAM prompt from URL keywords, title, or category
-                sam_prompt = map_to_sam_prompt(
-                    product_title=title,
-                    category=category,
-                    source_url=source_url
-                )
-                print(f"🎯 SAM prompt: '{sam_prompt}' (from URL/title analysis)")
-                
-                # Try SAM3 first
-                segmented = await segment_with_sam3(image_bytes, sam_prompt)
-                
-                if segmented:
-                    cutout_url = upload_to_firebase(segmented, "wishlist_cutouts")
-                    segmentation_method = "sam3"
-                    print(f"✅ SAM3 cutout: {cutout_url[:50]}...")
-                else:
-                    # Fallback to rembg
-                    print("⚠️ SAM3 failed, trying rembg...")
-                    try:
-                        pil_img = Image.open(BytesIO(image_bytes))
-                        removed = remove(pil_img)
-                        output = BytesIO()
-                        removed.save(output, format='PNG')
-                        cutout_url = upload_to_firebase(output.getvalue(), "wishlist_cutouts")
-                        segmentation_method = "rembg"
-                        print(f"✅ Rembg cutout: {cutout_url[:50]}...")
-                    except Exception as e:
-                        print(f"❌ Rembg also failed: {e}")
-                        cutout_url = original_url
-                        segmentation_method = "none"
-            else:
-                cutout_url = original_url
-                segmentation_method = "none"
-        else:
-            # No image available
-            original_url = None
-            cutout_url = None
-        
-        # Build response
-        return WishlistAddResponse(
+        return ScrapeResponse(
             success=True,
             image_url=cutout_url,
             image_original_url=original_url,
@@ -722,31 +698,209 @@ async def add_wishlist_item(request: WishlistAddRequest):
             category=category,
             brand=brand,
             retailer=retailer,
-            source_url=source_url,
-            price_snapshot_date=datetime.utcnow().isoformat(),
+            source_url=url,
             extraction_method=extraction_method,
-            capture_method=capture_method,
-            segmentation_method=segmentation_method,
-            needs_user_input=not (title and cutout_url)
+            segmentation_method=segmentation_method
         )
         
     except Exception as e:
-        print(f"❌ Wishlist error: {e}")
+        print(f"❌ Scrape error: {e}")
+        import traceback
+        traceback.print_exc()
+        return ScrapeResponse(
+            success=False,
+            error=str(e)
+        )
+
+
+# ============== MAIN ENDPOINT ==============
+
+@router.post("/add", response_model=WishlistAddResponse)
+async def add_wishlist_item(
+    request: WishlistAddRequest,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Save item to wishlist. Two use cases:
+    
+    1. After scraping: Pass data from /scrape response (images already processed)
+    2. Product card (heart icon): Pass product data, we'll process image for canvas
+    
+    All items saved to PostgreSQL favorites table.
+    """
+    # Auth check
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        print(f"💾 Saving wishlist item: {request.title}")
+        
+        # Use provided images directly (from /scrape or product card)
+        original_url = request.image_original_url or request.image_url
+        cutout_url = request.image_url
+        
+        # If we only have original image (product card), process for canvas
+        if original_url and not request.image_url:
+            print(f"🖼️ Processing image for canvas...")
+            image_bytes = download_image(original_url)
+            if image_bytes:
+                sam_prompt = map_to_sam_prompt(
+                    product_title=request.title,
+                    category=None,
+                    source_url=request.source_url
+                )
+                
+                segmented = await segment_with_sam3(image_bytes, sam_prompt)
+                if segmented:
+                    cutout_url = upload_to_firebase(segmented, "wishlist_cutouts")
+                    print(f"✅ SAM3 cutout created")
+                else:
+                    try:
+                        pil_img = Image.open(BytesIO(image_bytes))
+                        removed = remove(pil_img)
+                        output = BytesIO()
+                        removed.save(output, format='PNG')
+                        cutout_url = upload_to_firebase(output.getvalue(), "wishlist_cutouts")
+                        print(f"✅ Rembg cutout created")
+                    except:
+                        cutout_url = original_url
+                        print(f"⚠️ Using original as cutout")
+        
+        # Convert price to float
+        price_float = None
+        if request.price:
+            try:
+                price_str = str(request.price).replace('£', '').replace('$', '').replace('€', '').replace(',', '').strip()
+                price_float = float(price_str)
+            except:
+                price_float = None
+        
+        # Create Favorite record
+        favorite = Favorite(
+            user_id=user.id,
+            product_id=request.product_id,
+            title=request.title,
+            image_url=original_url,  # Original image (for VTO)
+            canvas_image_url=cutout_url,  # Segmented cutout (for canvas)
+            brand=request.brand,
+            retailer=request.retailer,
+            price=price_float,
+            product_url=request.source_url,
+            created_at=datetime.utcnow()
+        )
+        
+        db.add(favorite)
+        db.commit()
+        db.refresh(favorite)
+        
+        print(f"✅ Saved to database: ID {favorite.id}")
+        
+        return WishlistAddResponse(
+            success=True,
+            id=favorite.id,
+            image_url=cutout_url,
+            image_original_url=original_url,
+            title=request.title,
+            price=price_float,
+            brand=request.brand,
+            retailer=request.retailer,
+            source_url=request.source_url
+        )
+        
+    except Exception as e:
+        print(f"❌ Wishlist save error: {e}")
         import traceback
         traceback.print_exc()
         return WishlistAddResponse(
             success=False,
-            error=str(e),
-            needs_user_input=True
+            error=str(e)
         )
+
+
+# ============== GET WISHLIST ITEMS ==============
+
+@router.get("/items", response_model=List[WishlistItemResponse])
+async def get_wishlist_items(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Get all wishlist items for the authenticated user"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    items = db.query(Favorite).filter(Favorite.user_id == user.id).order_by(Favorite.created_at.desc()).all()
+    
+    return [
+        WishlistItemResponse(
+            id=item.id,
+            title=item.title,
+            price=item.price,
+            brand=item.brand,
+            retailer=item.retailer,
+            image_url=item.image_url,
+            canvas_image_url=item.canvas_image_url,
+            product_url=item.product_url,
+            created_at=item.created_at.isoformat() if item.created_at else None
+        )
+        for item in items
+    ]
+
+
+# ============== DELETE WISHLIST ITEM ==============
+
+@router.delete("/items/{item_id}")
+async def delete_wishlist_item(
+    item_id: int,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Remove item from wishlist"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    item = db.query(Favorite).filter(
+        Favorite.id == item_id,
+        Favorite.user_id == user.id
+    ).first()
+    
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    db.delete(item)
+    db.commit()
+    
+    return {"success": True, "message": "Item removed from wishlist"}
 
 
 @router.get("/health")
 async def health_check():
     return {
         "status": "healthy",
-        "extraction_tiers": ["schema_org", "open_graph", "heuristic", "manual"],
+        "storage": "postgresql",
+        "extraction_tiers": ["schema_org", "open_graph", "heuristic", "manual", "api_product"],
         "segmentation": ["sam3", "rembg_fallback"],
+        "endpoints": [
+            "POST /wishlist/scrape - Scrape URL for preview (no save)",
+            "POST /wishlist/add - Save item to wishlist",
+            "GET /wishlist/items - Get user's wishlist",
+            "DELETE /wishlist/items/{id} - Remove item"
+        ],
         "features": [
             "url_keyword_extraction",
             "image_caching",
@@ -754,6 +908,7 @@ async def health_check():
             "dual_image_storage",
             "price_snapshot",
             "direct_image_processing",
-            "partial_data_on_failure"
+            "product_card_support",
+            "postgresql_storage"
         ]
     }
