@@ -37,23 +37,8 @@ from sqlalchemy.orm import Session
 # Database imports
 from database import get_db, Favorite
 
-# Auth helper - same as used in app.py
-import jwt
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-secret-key-change-in-production")
-
-def get_current_user(db: Session, token: str):
-    """Validate JWT token and return user"""
-    from database import User
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        user_id = payload.get("user_id")
-        if not user_id:
-            return None
-        return db.query(User).filter(User.id == user_id).first()
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
+# Auth - use existing auth service
+from auth_service import get_current_user
 
 # Initialize Firebase if not already done
 def init_firebase():
