@@ -3289,3 +3289,15 @@ async def migrate_styling_metadata(db: Session = Depends(get_db)):
         return {"status": "success", "message": "Styling metadata columns added"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+# TEMPORARY: Add missing description column
+@app.post("/admin/add-description-column")
+async def add_description_column(db: Session = Depends(get_db)):
+    """Add description column that was missing"""
+    try:
+        db.execute(text("ALTER TABLE wardrobe_items ADD COLUMN IF NOT EXISTS description TEXT"))
+        db.commit()
+        return {"status": "success", "message": "Description column added"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
