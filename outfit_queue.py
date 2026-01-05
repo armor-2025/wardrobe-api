@@ -7,11 +7,20 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 @dataclass
+from typing import List, Optional
+
+@dataclass
 class QueuedItem:
     image_bytes: bytes
     description: str
     category: str
     color: str
+    formality_level: str = None
+    silhouette: str = None
+    material: str = None
+    style_tags: List[str] = field(default_factory=list)
+    secondary_colours: List[str] = field(default_factory=list)
+    subcategory: str = None
     
 @dataclass  
 class UploadQueue:

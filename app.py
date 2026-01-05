@@ -1638,7 +1638,13 @@ async def upload_wardrobe_smart(
                     image_bytes=extracted_bytes,
                     description=description,
                     category=item_info.get("category", "unknown"),
-                    color=item_info.get("color", "unknown")
+                    color=item_info.get("color", "unknown"),
+                    formality_level=styling_metadata.get("formality_level"),
+                    silhouette=styling_metadata.get("silhouette"),
+                    material=styling_metadata.get("material"),
+                    style_tags=styling_metadata.get("style_tags", []),
+                    secondary_colours=styling_metadata.get("secondary_colours", []),
+                    subcategory=styling_metadata.get("subcategory")
                 ))
                 print(f"  ✓ Segmented: {description}")
             else:
@@ -1674,7 +1680,13 @@ async def upload_wardrobe_smart(
             "image_url": image_url,
             "category": first_item.category,
             "description": first_item.description,
-            "color": first_item.color
+            "color": first_item.color,
+            "formality_level": first_item.formality_level,
+            "silhouette": first_item.silhouette,
+            "material": first_item.material,
+            "style_tags": first_item.style_tags,
+            "secondary_colours": first_item.secondary_colours,
+            "subcategory": first_item.subcategory
         }
     }
 
@@ -1773,7 +1785,13 @@ async def save_and_next_item(
             "image_url": next_image_url,
             "category": next_queued.category,
             "description": next_queued.description,
-            "color": next_queued.color
+            "color": next_queued.color,
+            "formality_level": next_queued.formality_level,
+            "silhouette": next_queued.silhouette,
+            "material": next_queued.material,
+            "style_tags": next_queued.style_tags,
+            "secondary_colours": next_queued.secondary_colours,
+            "subcategory": next_queued.subcategory
         }
     }
 
@@ -1830,7 +1848,13 @@ async def skip_item(
             "image_url": next_image_url,
             "category": next_queued.category,
             "description": next_queued.description,
-            "color": next_queued.color
+            "color": next_queued.color,
+            "formality_level": next_queued.formality_level,
+            "silhouette": next_queued.silhouette,
+            "material": next_queued.material,
+            "style_tags": next_queued.style_tags,
+            "secondary_colours": next_queued.secondary_colours,
+            "subcategory": next_queued.subcategory
         }
     }
 
@@ -3052,7 +3076,13 @@ async def batch_upload(
                         image_bytes=extracted_bytes,
                         description=description,
                         category=item_info.get("category", "unknown"),
-                        color=item_info.get("color", "unknown")
+                        color=item_info.get("color", "unknown"),
+                    formality_level=styling_metadata.get("formality_level"),
+                    silhouette=styling_metadata.get("silhouette"),
+                    material=styling_metadata.get("material"),
+                    style_tags=styling_metadata.get("style_tags", []),
+                    secondary_colours=styling_metadata.get("secondary_colours", []),
+                    subcategory=styling_metadata.get("subcategory")
                     ))
     
     del first_bytes
@@ -3086,7 +3116,13 @@ async def batch_upload(
             "image_url": image_url,
             "category": first_item.category,
             "description": first_item.description,
-            "color": first_item.color
+            "color": first_item.color,
+            "formality_level": first_item.formality_level,
+            "silhouette": first_item.silhouette,
+            "material": first_item.material,
+            "style_tags": first_item.style_tags,
+            "secondary_colours": first_item.secondary_colours,
+            "subcategory": first_item.subcategory
         },
         "total_items": queue.total_items + len(remaining_urls)
     }
@@ -3141,7 +3177,13 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
                     image_bytes=processed_bytes,
                     description=item_info.get("description", "unknown"),
                     category=item_info.get("category", "unknown"),
-                    color=item_info.get("color", "unknown")
+                    color=item_info.get("color", "unknown"),
+                    formality_level=styling_metadata.get("formality_level"),
+                    silhouette=styling_metadata.get("silhouette"),
+                    material=styling_metadata.get("material"),
+                    style_tags=styling_metadata.get("style_tags", []),
+                    secondary_colours=styling_metadata.get("secondary_colours", []),
+                    subcategory=styling_metadata.get("subcategory")
                 ))
                 print(f"   ✓ Added: {item_info.get('description', 'unknown')}")
             else:
@@ -3161,7 +3203,13 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
                                 image_bytes=extracted_bytes,
                                 description=item_info.get("description", "unknown"),
                                 category=item_info.get("category", "unknown"),
-                                color=item_info.get("color", "unknown")
+                                color=item_info.get("color", "unknown"),
+                    formality_level=styling_metadata.get("formality_level"),
+                    silhouette=styling_metadata.get("silhouette"),
+                    material=styling_metadata.get("material"),
+                    style_tags=styling_metadata.get("style_tags", []),
+                    secondary_colours=styling_metadata.get("secondary_colours", []),
+                    subcategory=styling_metadata.get("subcategory")
                             ))
                             print(f"   ✓ Added: {item_info.get('description', 'unknown')}")
             
