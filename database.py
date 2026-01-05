@@ -69,6 +69,7 @@ class Favorite(Base):
     canvas_processing_status = Column(String, nullable=True)  # "pending", "processing", "complete", "failed"
     brand = Column(String)
     retailer = Column(String)
+    category = Column(String, nullable=True)  # outerwear, tops, bottoms, footwear, accessories
     price = Column(Float)
     original_price = Column(Float)
     price_history = Column(Text)

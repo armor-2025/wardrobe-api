@@ -113,6 +113,7 @@ class WishlistItemResponse(BaseModel):
     price: Optional[float]
     brand: Optional[str]
     retailer: Optional[str]
+    category: Optional[str]  # Clothing category (top, bottoms, dress, etc.)
     image_url: Optional[str]  # Original image
     canvas_image_url: Optional[str]  # Segmented cutout
     product_url: Optional[str]
@@ -122,7 +123,7 @@ class WishlistItemResponse(BaseModel):
 # ============== URL KEYWORD EXTRACTION ==============
 
 def extract_keywords_from_url(url: str) -> Optional[str]:
-    """Extract clothing keywords from URL path - most reliable source"""
+    """Extract clothing keywords from URL path - returns SAM prompt"""
     if not url:
         return None
         
@@ -186,6 +187,71 @@ def extract_keywords_from_url(url: str) -> Optional[str]:
                 if keyword in segment:
                     print(f"🔍 URL keyword match: '{keyword}' → SAM prompt: '{sam_prompt}'")
                     return sam_prompt
+    
+    return None
+
+
+def extract_category_from_url(url: str) -> Optional[str]:
+    """Extract wardrobe category from URL - returns user's actual category names"""
+    if not url:
+        return None
+        
+    path = urlparse(url).path.lower()
+    
+    # Split path into segments and hyphenated words
+    segments = []
+    for segment in path.split('/'):
+        segments.append(segment)
+        segments.extend(segment.split('-'))
+    
+    # Check for sleeved items first (always tops)
+    if 'sleeved' in path or 'sleeve' in path:
+        return 'tops'
+    
+    # Map keywords to YOUR actual categories: outerwear, tops, bottoms, footwear, accessories
+    category_map = [
+        # Tops
+        (['tshirt', 't-shirt', 'tee', 'shirt', 'shirts', 'blouse', 'blouses'], 'tops'),
+        (['top', 'tops'], 'tops'),
+        (['sweater', 'sweaters', 'jumper', 'jumpers', 'knit', 'knitwear'], 'tops'),
+        (['hoodie', 'hoodies', 'sweatshirt', 'sweatshirts'], 'tops'),
+        (['polo', 'polos', 'vest', 'vests', 'tank'], 'tops'),
+        (['dress', 'dresses', 'gown', 'maxi', 'midi'], 'tops'),  # Dresses as tops
+        (['jumpsuit', 'jumpsuits', 'romper', 'playsuit'], 'tops'),
+        
+        # Outerwear
+        (['jacket', 'jackets', 'blazer', 'blazers'], 'outerwear'),
+        (['coat', 'coats', 'overcoat', 'trench'], 'outerwear'),
+        (['cardigan', 'cardigans', 'gilet', 'puffer'], 'outerwear'),
+        
+        # Bottoms
+        (['jean', 'jeans', 'denim'], 'bottoms'),
+        (['trouser', 'trousers', 'pant', 'pants', 'chino', 'chinos'], 'bottoms'),
+        (['shorts'], 'bottoms'),
+        (['skirt', 'skirts'], 'bottoms'),
+        (['legging', 'leggings'], 'bottoms'),
+        
+        # Footwear
+        (['shoe', 'shoes', 'footwear'], 'footwear'),
+        (['sneaker', 'sneakers', 'trainer', 'trainers'], 'footwear'),
+        (['boot', 'boots', 'bootie', 'booties'], 'footwear'),
+        (['heel', 'heels', 'pump', 'pumps', 'sandal', 'sandals'], 'footwear'),
+        (['loafer', 'loafers', 'moccasin', 'flat', 'flats', 'slipper'], 'footwear'),
+        
+        # Accessories
+        (['bag', 'bags', 'handbag', 'purse', 'tote', 'clutch'], 'accessories'),
+        (['hat', 'hats', 'cap', 'caps', 'beanie', 'beret'], 'accessories'),
+        (['scarf', 'scarves', 'glove', 'gloves', 'belt', 'belts'], 'accessories'),
+        (['jewellery', 'jewelry', 'necklace', 'bracelet', 'ring', 'earring'], 'accessories'),
+        (['watch', 'watches', 'sunglasses', 'glasses'], 'accessories'),
+    ]
+    
+    for keywords, category in category_map:
+        for keyword in keywords:
+            for segment in segments:
+                if keyword in segment:
+                    print(f"📁 URL keyword match: '{keyword}' → Category: '{category}'")
+                    return category
     
     return None
 
@@ -733,6 +799,7 @@ async def add_wishlist_item(
     
     try:
         print(f"💾 Saving wishlist item: {request.title}")
+        print(f"💰 Price received: '{request.price}' (type: {type(request.price).__name__})")
         
         # Use provided images directly (from /scrape or product card)
         original_url = request.image_original_url or request.image_url
@@ -777,12 +844,23 @@ async def add_wishlist_item(
         
         # Convert price to float
         price_float = None
-        if request.price:
+        # Check for valid price (not empty, not "null" string)
+        if request.price and str(request.price).lower() != 'null':
             try:
                 price_str = str(request.price).replace('£', '').replace('$', '').replace('€', '').replace(',', '').strip()
                 price_float = float(price_str)
-            except:
+                print(f"💰 Price converted: '{price_str}' → {price_float}")
+            except Exception as e:
+                print(f"❌ Price conversion failed: {e}")
                 price_float = None
+        else:
+            print(f"💰 No valid price (request.price: '{request.price}')")
+        
+        # Extract category from source URL (uses your actual categories)
+        category = None
+        if request.source_url:
+            category = extract_category_from_url(request.source_url)
+            print(f"📁 Category extracted: '{category}'")
         
         # Create Favorite record
         favorite = Favorite(
@@ -793,6 +871,7 @@ async def add_wishlist_item(
             canvas_image_url=cutout_url,  # Segmented cutout (for canvas)
             brand=request.brand,
             retailer=request.retailer,
+            category=category,  # Clothing category
             price=price_float,
             product_url=request.source_url,
             created_at=datetime.utcnow()
@@ -851,6 +930,7 @@ async def get_wishlist_items(
             price=item.price,
             brand=item.brand,
             retailer=item.retailer,
+            category=item.category,
             image_url=item.image_url,
             canvas_image_url=item.canvas_image_url,
             product_url=item.product_url,
