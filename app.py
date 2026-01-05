@@ -2610,7 +2610,7 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
             for item in wardrobe_items:
                 print(f"[VTO {job_id}] Adding wardrobe item: {item.id}")
                 items.append({
-                    'image_url': item.canvas_image_url or item.image_url,
+                    'image_url': item.image_url,
                     'category': item.category or 'top',
                     'color': getattr(item, 'color', None),
                     'fabric': getattr(item, 'fabric', None)
