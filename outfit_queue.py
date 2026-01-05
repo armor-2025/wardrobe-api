@@ -7,9 +7,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 @dataclass
-from typing import List, Optional
-
-@dataclass
 class QueuedItem:
     image_bytes: bytes
     description: str
