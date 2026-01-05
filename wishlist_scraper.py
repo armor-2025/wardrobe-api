@@ -136,8 +136,23 @@ def extract_keywords_from_url(url: str) -> Optional[str]:
         segments.extend(segment.split('-'))
     
     # Priority order matters - check more specific terms first
+    # IMPORTANT: Check compound terms and disambiguating words FIRST
+    
+    # First check for "sleeved" which always means a top (short-sleeved, long-sleeved, etc.)
+    if 'sleeved' in path or 'sleeve' in path:
+        print(f"🔍 URL keyword match: 'sleeved/sleeve' → SAM prompt: 'top'")
+        return 'top'
+    
     keywords_map = [
-        # Dresses & full-body (check first - "dress" could be in path with other words)
+        # Tops FIRST - to catch "shirt" before "short" gets matched to bottoms
+        (['tshirt', 't-shirt', 'tee'], 'top'),  # Most specific t-shirt terms first
+        (['shirt', 'shirts', 'blouse', 'blouses'], 'top'),
+        (['top', 'tops'], 'top'),
+        (['sweater', 'sweaters', 'jumper', 'jumpers', 'knit', 'knitwear'], 'top'),
+        (['hoodie', 'hoodies', 'sweatshirt', 'sweatshirts'], 'top'),
+        (['polo', 'polos', 'vest', 'vests', 'tank'], 'top'),
+        
+        # Dresses & full-body
         (['dress', 'dresses', 'gown', 'maxi', 'midi'], 'dress'),
         (['jumpsuit', 'jumpsuits', 'romper', 'playsuit'], 'dress'),
         
@@ -146,19 +161,12 @@ def extract_keywords_from_url(url: str) -> Optional[str]:
         (['coat', 'coats', 'overcoat', 'trench'], 'jacket'),
         (['cardigan', 'cardigans', 'gilet'], 'jacket'),
         
-        # Bottoms
+        # Bottoms - AFTER tops so "shirt" beats "short"
         (['jean', 'jeans', 'denim'], 'bottoms'),
         (['trouser', 'trousers', 'pant', 'pants', 'chino', 'chinos'], 'bottoms'),
-        (['short', 'shorts'], 'bottoms'),
+        (['shorts'], 'bottoms'),  # Changed: only exact "shorts", not "short"
         (['skirt', 'skirts'], 'bottoms'),
         (['legging', 'leggings'], 'bottoms'),
-        
-        # Tops
-        (['shirt', 'shirts', 'blouse', 'blouses'], 'top'),
-        (['top', 'tops', 'tee', 'tshirt', 't-shirt'], 'top'),
-        (['sweater', 'sweaters', 'jumper', 'jumpers', 'knit', 'knitwear'], 'top'),
-        (['hoodie', 'hoodies', 'sweatshirt', 'sweatshirts'], 'top'),
-        (['polo', 'polos', 'vest', 'vests', 'tank'], 'top'),
         
         # Footwear
         (['shoe', 'shoes', 'footwear'], 'shoes'),
