@@ -3239,3 +3239,23 @@ async def migrate_add_face_photo_url():
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS face_photo_url VARCHAR"))
         conn.commit()
     return {"success": True, "message": "face_photo_url column added"}
+
+
+# TEMPORARY: Migration endpoint for styling metadata
+@app.post("/admin/migrate-styling-metadata")
+async def migrate_styling_metadata(db: Session = Depends(get_db)):
+    """One-time migration to add styling metadata columns"""
+    try:
+        db.execute(text("""
+            ALTER TABLE wardrobe_items 
+            ADD COLUMN IF NOT EXISTS formality_level TEXT,
+            ADD COLUMN IF NOT EXISTS silhouette TEXT,
+            ADD COLUMN IF NOT EXISTS material TEXT,
+            ADD COLUMN IF NOT EXISTS style_tags TEXT[],
+            ADD COLUMN IF NOT EXISTS secondary_colours TEXT[],
+            ADD COLUMN IF NOT EXISTS subcategory TEXT
+        """))
+        db.commit()
+        return {"status": "success", "message": "Styling metadata columns added"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
