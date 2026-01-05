@@ -2590,6 +2590,7 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
         # Parse item IDs
         ids = [int(id.strip()) for id in item_ids.split(",") if id.strip()]
         
+        print(f"[VTO {job_id}] Querying items with IDs: {ids}")
         # Query wardrobe items
         wardrobe_items = db.query(WardrobeItem).filter(
             WardrobeItem.id.in_(ids),
@@ -2602,6 +2603,7 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
             Favorite.user_id == user_id
         ).all()
         
+        print(f"[VTO {job_id}] Found {len(wardrobe_items)} wardrobe, {len(favorite_items)} wishlist")
         # Combine into unified list
         items = []
         for item in wardrobe_items:
