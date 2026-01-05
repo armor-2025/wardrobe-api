@@ -2606,20 +2606,31 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
         print(f"[VTO {job_id}] Found {len(wardrobe_items)} wardrobe, {len(favorite_items)} wishlist")
         # Combine into unified list
         items = []
-        for item in wardrobe_items:
-            items.append({
-                'image_url': item.canvas_image_url or item.image_url,
-                'category': item.category or 'top',
-                'color': getattr(item, 'color', None),
-                'fabric': getattr(item, 'fabric', None)
-            })
-        for item in favorite_items:
-            items.append({
-                'image_url': item.canvas_image_url or item.image_url,
-                'category': item.category or 'top',
-                'color': None,
-                'fabric': None
-            })
+        try:
+            for item in wardrobe_items:
+                print(f"[VTO {job_id}] Adding wardrobe item: {item.id}")
+                items.append({
+                    'image_url': item.canvas_image_url or item.image_url,
+                    'category': item.category or 'top',
+                    'color': getattr(item, 'color', None),
+                    'fabric': getattr(item, 'fabric', None)
+                })
+            for item in favorite_items:
+                print(f"[VTO {job_id}] Adding wishlist item: {item.id}")
+                items.append({
+                    'image_url': item.canvas_image_url or item.image_url,
+                    'category': item.category or 'top',
+                    'color': None,
+                    'fabric': None
+                })
+        except Exception as e:
+            print(f"[VTO {job_id}] ERROR combining items: {e}")
+            import traceback
+            traceback.print_exc()
+            job.status = "failed"
+            job.error = str(e)
+            db.commit()
+            return
         
         if not items:
             job.status = "failed"
