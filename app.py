@@ -36,6 +36,7 @@ from conversational_search import get_conversational_service
 
 from fastapi import Depends, HTTPException, Header
 from fastapi.security import HTTPBearer
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import json
