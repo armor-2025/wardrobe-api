@@ -2589,10 +2589,35 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
         
         # Parse item IDs
         ids = [int(id.strip()) for id in item_ids.split(",") if id.strip()]
-        items = db.query(WardrobeItem).filter(
+        
+        # Query wardrobe items
+        wardrobe_items = db.query(WardrobeItem).filter(
             WardrobeItem.id.in_(ids),
             WardrobeItem.user_id == user_id
         ).all()
+        
+        # Query wishlist/favorite items  
+        favorite_items = db.query(Favorite).filter(
+            Favorite.id.in_(ids),
+            Favorite.user_id == user_id
+        ).all()
+        
+        # Combine into unified list
+        items = []
+        for item in wardrobe_items:
+            items.append({
+                'image_url': item.canvas_image_url or item.image_url,
+                'category': item.category or 'top',
+                'color': getattr(item, 'color', None),
+                'fabric': getattr(item, 'fabric', None)
+            })
+        for item in favorite_items:
+            items.append({
+                'image_url': item.canvas_image_url or item.image_url,
+                'category': item.category or 'top',
+                'color': None,
+                'fabric': None
+            })
         
         if not items:
             job.status = "failed"
@@ -2611,11 +2636,16 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
             # Fetch garment images
             garments = []
             for item in items:
-                resp = await client.get(item.image_url)
-                description = f"{item.color or ''} {item.fabric or ''}".strip() or item.category
+                img_url = item['image_url'] if isinstance(item, dict) else (item.canvas_image_url or item.image_url)
+                category = item['category'] if isinstance(item, dict) else (item.category or 'top')
+                color = item.get('color') if isinstance(item, dict) else getattr(item, 'color', None)
+                fabric = item.get('fabric') if isinstance(item, dict) else getattr(item, 'fabric', None)
+                
+                resp = await client.get(img_url)
+                description = f"{color or ''} {fabric or ''}".strip() or category
                 garments.append(GarmentItem(
                     image_base64=base64.b64encode(resp.content).decode('utf-8'),
-                    category=item.category or "top",
+                    category=category,
                     description=description
                 ))
             
