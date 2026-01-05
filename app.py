@@ -2627,6 +2627,7 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
             db.commit()
             return
         
+        print(f"[VTO {job_id}] Items combined: {len(items)} total")
         async with httpx.AsyncClient(timeout=120.0) as client:
             # Fetch user's original photo
             print(f"[VTO {job_id}] Fetching avatar...")
