@@ -55,6 +55,14 @@ class WardrobeItem(Base):
     season = Column(String, nullable=True)  # "spring", "summer", etc.
     state = Column(String, nullable=True)  # "new", "good", "worn" 
     
+    # Styling metadata for AI outfit generation
+    formality_level = Column(String, nullable=True)  # casual, smart_casual, business_casual, formal, black_tie
+    silhouette = Column(String, nullable=True)  # fitted, regular, relaxed, oversized, structured, flowy
+    material = Column(String, nullable=True)  # cotton, wool, denim, etc.
+    secondary_colours = Column(Text, nullable=True)  # JSON array of accent colours
+    subcategory = Column(String, nullable=True)  # t-shirt, blouse, jeans, etc.
+    description = Column(String, nullable=True)  # AI generated description
+    
     user = relationship("User", back_populates="wardrobe_items")
 
 class Favorite(Base):

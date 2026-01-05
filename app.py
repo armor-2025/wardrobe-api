@@ -44,6 +44,7 @@ import json
 from database import init_db, get_db, User, WardrobeItem, Favorite, Outfit
 from auth_service import signup, login, create_access_token, get_current_user
 from vision_service import get_vision_service
+from styling_metadata_service import get_styling_metadata_service
 from stock_checker import get_stock_checker
 
 from fastapi import File, UploadFile
@@ -652,6 +653,11 @@ def update_wardrobe_item(
     pattern: str = None,
     style_tags: str = None,  # JSON string array
     brand: str = None,
+    formality_level: str = None,
+    silhouette: str = None,
+    material: str = None,
+    secondary_colours: str = None,
+    subcategory: str = None,
     size: str = None,
     price: float = None,
     date_purchased: str = None,  # ISO format string
@@ -1559,6 +1565,12 @@ async def upload_wardrobe_smart(
     analysis = await vision.analyze_upload(str(temp_path))
     
     print(f"Gemini analysis: {analysis}")
+
+    # Extract styling metadata (SEPARATE Gemini call for AI outfit generation)
+    styling_service = get_styling_metadata_service()
+    first_item_category = analysis.get("items", [{}])[0].get("category") if analysis.get("items") else None
+    styling_metadata = await styling_service.extract_styling_metadata(str(temp_path), first_item_category)
+    print(f"Styling metadata: {styling_metadata}")
     
     image_type = analysis.get("type", "single_item")
     items = analysis.get("items", [])
@@ -1594,7 +1606,13 @@ async def upload_wardrobe_smart(
                 "image_url": image_url,
                 "category": item_info.get("category", "unknown"),
                 "description": item_info.get("description", "unknown"),
-                "color": item_info.get("color", "unknown")
+                "color": item_info.get("color", "unknown"),
+                "formality_level": styling_metadata.get("formality_level"),
+                "silhouette": styling_metadata.get("silhouette"),
+                "material": styling_metadata.get("material"),
+                "style_tags": styling_metadata.get("style_tags", []),
+                "secondary_colours": styling_metadata.get("secondary_colours", []),
+                "subcategory": styling_metadata.get("subcategory")
             }
         }
     
@@ -1669,6 +1687,11 @@ async def save_and_next_item(
     color: str,
     image_url: str,
     brand: str = None,
+    formality_level: str = None,
+    silhouette: str = None,
+    material: str = None,
+    secondary_colours: str = None,
+    subcategory: str = None,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -1691,7 +1714,13 @@ async def save_and_next_item(
         pattern='',
         style_tags='[]',
         brand=brand or '',
-        user_edited=True
+        user_edited=True,
+        formality_level=formality_level,
+        silhouette=silhouette,
+        material=material,
+        secondary_colours=secondary_colours,
+        subcategory=subcategory,
+        description=description
     )
     db.add(item)
     db.commit()
