@@ -1626,6 +1626,10 @@ async def upload_wardrobe_smart(
         label = item_info.get("label", "clothing")
         description = item_info.get("description", "unknown item")
         
+        # Extract styling metadata for THIS specific item
+        item_styling = await styling_service.extract_styling_metadata(str(temp_path), item_info.get("category"), label)
+        print(f"  Styling for {label}: {item_styling}")
+        
         # Call SAM 3 to segment this item
         seg_result = await sam3.segment_item(file_bytes, label)
         
@@ -1639,12 +1643,12 @@ async def upload_wardrobe_smart(
                     description=description,
                     category=item_info.get("category", "unknown"),
                     color=item_info.get("color", "unknown"),
-                    formality_level=styling_metadata.get("formality_level"),
-                    silhouette=styling_metadata.get("silhouette"),
-                    material=styling_metadata.get("material"),
-                    style_tags=styling_metadata.get("style_tags", []),
-                    secondary_colours=styling_metadata.get("secondary_colours", []),
-                    subcategory=styling_metadata.get("subcategory")
+                    formality_level=item_styling.get("formality_level"),
+                    silhouette=item_styling.get("silhouette"),
+                    material=item_styling.get("material"),
+                    style_tags=item_styling.get("style_tags", []),
+                    secondary_colours=item_styling.get("secondary_colours", []),
+                    subcategory=item_styling.get("subcategory")
                 ))
                 print(f"  ✓ Segmented: {description}")
             else:
@@ -3077,12 +3081,12 @@ async def batch_upload(
                         description=description,
                         category=item_info.get("category", "unknown"),
                         color=item_info.get("color", "unknown"),
-                    formality_level=styling_metadata.get("formality_level"),
-                    silhouette=styling_metadata.get("silhouette"),
-                    material=styling_metadata.get("material"),
-                    style_tags=styling_metadata.get("style_tags", []),
-                    secondary_colours=styling_metadata.get("secondary_colours", []),
-                    subcategory=styling_metadata.get("subcategory")
+                    formality_level=item_styling.get("formality_level"),
+                    silhouette=item_styling.get("silhouette"),
+                    material=item_styling.get("material"),
+                    style_tags=item_styling.get("style_tags", []),
+                    secondary_colours=item_styling.get("secondary_colours", []),
+                    subcategory=item_styling.get("subcategory")
                     ))
     
     del first_bytes
@@ -3178,12 +3182,12 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
                     description=item_info.get("description", "unknown"),
                     category=item_info.get("category", "unknown"),
                     color=item_info.get("color", "unknown"),
-                    formality_level=styling_metadata.get("formality_level"),
-                    silhouette=styling_metadata.get("silhouette"),
-                    material=styling_metadata.get("material"),
-                    style_tags=styling_metadata.get("style_tags", []),
-                    secondary_colours=styling_metadata.get("secondary_colours", []),
-                    subcategory=styling_metadata.get("subcategory")
+                    formality_level=item_styling.get("formality_level"),
+                    silhouette=item_styling.get("silhouette"),
+                    material=item_styling.get("material"),
+                    style_tags=item_styling.get("style_tags", []),
+                    secondary_colours=item_styling.get("secondary_colours", []),
+                    subcategory=item_styling.get("subcategory")
                 ))
                 print(f"   ✓ Added: {item_info.get('description', 'unknown')}")
             else:
@@ -3204,12 +3208,12 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
                                 description=item_info.get("description", "unknown"),
                                 category=item_info.get("category", "unknown"),
                                 color=item_info.get("color", "unknown"),
-                    formality_level=styling_metadata.get("formality_level"),
-                    silhouette=styling_metadata.get("silhouette"),
-                    material=styling_metadata.get("material"),
-                    style_tags=styling_metadata.get("style_tags", []),
-                    secondary_colours=styling_metadata.get("secondary_colours", []),
-                    subcategory=styling_metadata.get("subcategory")
+                    formality_level=item_styling.get("formality_level"),
+                    silhouette=item_styling.get("silhouette"),
+                    material=item_styling.get("material"),
+                    style_tags=item_styling.get("style_tags", []),
+                    secondary_colours=item_styling.get("secondary_colours", []),
+                    subcategory=item_styling.get("subcategory")
                             ))
                             print(f"   ✓ Added: {item_info.get('description', 'unknown')}")
             

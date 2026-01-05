@@ -63,7 +63,7 @@ class StylingMetadataService:
         img.save(buffer, format='JPEG')
         return buffer.getvalue(), "image/jpeg"
     
-    async def extract_styling_metadata(self, image_source, category_hint: str = None) -> Dict[str, Any]:
+    async def extract_styling_metadata(self, image_source, category_hint: str = None, item_label: str = None) -> Dict[str, Any]:
         """
         Extract styling metadata from clothing image.
         
@@ -85,7 +85,11 @@ class StylingMetadataService:
             image_bytes, mime_type = self._image_to_bytes(image_source)
             image_part = Part.from_bytes(data=image_bytes, mime_type=mime_type)
             
-            category_context = f"This item is categorized as: {category_hint}" if category_hint else ""
+            category_context = ""
+            if item_label and category_hint:
+                category_context = f"Focus ONLY on the {item_label} ({category_hint}) in this image. Ignore all other items."
+            elif category_hint:
+                category_context = f"This item is categorized as: {category_hint}"
             
             prompt = f"""Analyze this clothing image for styling metadata.
 {category_context}
