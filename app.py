@@ -1582,6 +1582,7 @@ async def upload_wardrobe_smart(
     if image_type == "single_item" or len(items) == 1:
         # Extract styling metadata for single item
         item_styling = await styling_service.extract_styling_metadata(str(temp_path), items[0].get("category"))
+        print(f"Styling metadata: {item_styling}")
         temp_path.unlink(missing_ok=True)
         
         # Remove background
@@ -1721,6 +1722,20 @@ async def save_and_next_item(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
     
+    # Get queue to access styling metadata
+    queue = get_queue(queue_id, user.id)
+    current_item = queue.get_current() if queue else None
+    
+    # Use styling from queue if not passed in URL
+    if current_item:
+        formality_level = formality_level or current_item.formality_level
+        silhouette = silhouette or current_item.silhouette
+        material = material or current_item.material
+        subcategory = subcategory or current_item.subcategory
+        # Handle lists
+        if not secondary_colours and current_item.secondary_colours:
+            secondary_colours = ",".join(current_item.secondary_colours) if current_item.secondary_colours else None
+    
     # Save item to database
     item = WardrobeItem(
         user_id=user.id,
@@ -1743,8 +1758,6 @@ async def save_and_next_item(
     db.commit()
     db.refresh(item)
     
-    # Get queue and advance
-    queue = get_queue(queue_id, user.id)
     
     if not queue:
         return {
@@ -3057,6 +3070,7 @@ async def batch_upload(
     if image_type == "single_item" or len(items) == 1:
         # Extract styling metadata for single item
         item_styling = await styling_service.extract_styling_metadata(str(temp_path), items[0].get("category"))
+        print(f"Styling metadata: {item_styling}")
         # Single item - just remove background
         processed_bytes = await process_single_item(first_bytes)
         item_info = items[0]
