@@ -1564,11 +1564,12 @@ async def upload_wardrobe_smart(
     vision = get_vision_service()
     analysis = await vision.analyze_upload(str(temp_path))
     
+    # Extract styling metadata
+    styling_service = get_styling_metadata_service()
     print(f"Gemini analysis: {analysis}")
 
     # Extract styling metadata (SEPARATE Gemini call for AI outfit generation)
     styling_service = get_styling_metadata_service()
-    first_item_category = analysis.get("items", [{}])[0].get("category") if analysis.get("items") else None
     styling_metadata = await styling_service.extract_styling_metadata(str(temp_path), first_item_category)
     print(f"Styling metadata: {styling_metadata}")
     
@@ -1581,6 +1582,8 @@ async def upload_wardrobe_smart(
     
     # SINGLE ITEM - process normally
     if image_type == "single_item" or len(items) == 1:
+        # Extract styling metadata for single item
+        item_styling = await styling_service.extract_styling_metadata(str(temp_path), items[0].get("category"))
         temp_path.unlink(missing_ok=True)
         
         # Remove background
@@ -3039,7 +3042,9 @@ async def batch_upload(
     # Analyze with Gemini
     vision = get_vision_service()
     analysis = await vision.analyze_upload(str(temp_path))
-    temp_path.unlink(missing_ok=True)
+    
+    # Extract styling metadata
+    styling_service = get_styling_metadata_service()
     
     image_type = analysis.get("type", "single_item")
     items = analysis.get("items", [])
@@ -3052,6 +3057,8 @@ async def batch_upload(
     sam3 = get_sam3_service()
     
     if image_type == "single_item" or len(items) == 1:
+        # Extract styling metadata for single item
+        item_styling = await styling_service.extract_styling_metadata(str(temp_path), items[0].get("category"))
         # Single item - just remove background
         processed_bytes = await process_single_item(first_bytes)
         item_info = items[0]
@@ -3059,13 +3066,22 @@ async def batch_upload(
             image_bytes=processed_bytes,
             description=item_info.get("description", "unknown"),
             category=item_info.get("category", "unknown"),
-            color=item_info.get("color", "unknown")
+            color=item_info.get("color", "unknown"),
+            formality_level=item_styling.get("formality_level"),
+            silhouette=item_styling.get("silhouette"),
+            material=item_styling.get("material"),
+            style_tags=item_styling.get("style_tags", []),
+            secondary_colours=item_styling.get("secondary_colours", []),
+            subcategory=item_styling.get("subcategory")
         ))
     else:
         # Outfit - segment each item
         for item_info in items:
             label = item_info.get("label", "clothing")
             description = item_info.get("description", "unknown")
+            
+            # Extract styling for this specific item
+            item_styling = await styling_service.extract_styling_metadata(str(temp_path), item_info.get("category"), label)
             
             seg_result = await sam3.segment_item(first_bytes, label)
             
@@ -3089,6 +3105,7 @@ async def batch_upload(
                     subcategory=item_styling.get("subcategory")
                     ))
     
+    temp_path.unlink(missing_ok=True)
     del first_bytes
     import gc
     gc.collect()
@@ -3157,7 +3174,9 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
             # Analyze
             vision = get_vision_service()
             analysis = await vision.analyze_upload(str(temp_path))
-            temp_path.unlink(missing_ok=True)
+    
+    # Extract styling metadata
+    styling_service = get_styling_metadata_service()
             
             items = analysis.get("items", [])
             image_type = analysis.get("type", "single_item")
@@ -3175,6 +3194,8 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
             sam3 = get_sam3_service()
             
             if image_type == "single_item" or len(items) == 1:
+        # Extract styling metadata for single item
+        item_styling = await styling_service.extract_styling_metadata(str(temp_path), items[0].get("category"))
                 processed_bytes = await process_single_item(file_bytes)
                 item_info = items[0]
                 queue.items.append(QueuedItem(
