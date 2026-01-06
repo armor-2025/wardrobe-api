@@ -1565,8 +1565,6 @@ async def upload_wardrobe_smart(
     analysis = await vision.analyze_upload(str(temp_path))
     
     # Extract styling metadata
-    styling_service = get_styling_metadata_service()
-    print(f"Gemini analysis: {analysis}")
 
     # Extract styling metadata (SEPARATE Gemini call for AI outfit generation)
     styling_service = get_styling_metadata_service()
@@ -3097,12 +3095,12 @@ async def batch_upload(
                         description=description,
                         category=item_info.get("category", "unknown"),
                         color=item_info.get("color", "unknown"),
-                    formality_level=item_styling.get("formality_level"),
-                    silhouette=item_styling.get("silhouette"),
-                    material=item_styling.get("material"),
-                    style_tags=item_styling.get("style_tags", []),
-                    secondary_colours=item_styling.get("secondary_colours", []),
-                    subcategory=item_styling.get("subcategory")
+                        formality_level=item_styling.get("formality_level"),
+                        silhouette=item_styling.get("silhouette"),
+                        material=item_styling.get("material"),
+                        style_tags=item_styling.get("style_tags", []),
+                        secondary_colours=item_styling.get("secondary_colours", []),
+                        subcategory=item_styling.get("subcategory")
                     ))
     
     temp_path.unlink(missing_ok=True)
@@ -3173,6 +3171,7 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
             
             # Analyze
             vision = get_vision_service()
+            styling_service = get_styling_metadata_service()
             analysis = await vision.analyze_upload(str(temp_path))
 
             items = analysis.get("items", [])
@@ -3212,6 +3211,8 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
                 # Outfit - segment each
                 for item_info in items:
                     label = item_info.get("label", "clothing")
+                    # Extract styling for this item
+                    item_styling = await styling_service.extract_styling_metadata(str(temp_path), item_info.get("category"), label)
                     seg_result = await sam3.segment_item(file_bytes, label)
                     
                     if seg_result["success"]:
@@ -3226,12 +3227,12 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
                                 description=item_info.get("description", "unknown"),
                                 category=item_info.get("category", "unknown"),
                                 color=item_info.get("color", "unknown"),
-                    formality_level=item_styling.get("formality_level"),
-                    silhouette=item_styling.get("silhouette"),
-                    material=item_styling.get("material"),
-                    style_tags=item_styling.get("style_tags", []),
-                    secondary_colours=item_styling.get("secondary_colours", []),
-                    subcategory=item_styling.get("subcategory")
+                                formality_level=item_styling.get("formality_level"),
+                                silhouette=item_styling.get("silhouette"),
+                                material=item_styling.get("material"),
+                                style_tags=item_styling.get("style_tags", []),
+                                secondary_colours=item_styling.get("secondary_colours", []),
+                                subcategory=item_styling.get("subcategory")
                             ))
                             print(f"   ✓ Added: {item_info.get('description', 'unknown')}")
             
