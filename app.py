@@ -3191,8 +3191,8 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
             sam3 = get_sam3_service()
             
             if image_type == "single_item" or len(items) == 1:
-        # Extract styling metadata for single item
-        item_styling = await styling_service.extract_styling_metadata(str(temp_path), items[0].get("category"))
+                # Extract styling metadata for single item
+                item_styling = await styling_service.extract_styling_metadata(str(temp_path), items[0].get("category"))
                 processed_bytes = await process_single_item(file_bytes)
                 item_info = items[0]
                 queue.items.append(QueuedItem(
