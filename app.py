@@ -1734,7 +1734,7 @@ async def save_and_next_item(
         subcategory = subcategory or current_item.subcategory
         # Handle lists
         if not secondary_colours and current_item.secondary_colours:
-            secondary_colours = ",".join(current_item.secondary_colours) if current_item.secondary_colours else None
+            secondary_colours = current_item.secondary_colours
     
     # Save item to database
     item = WardrobeItem(
