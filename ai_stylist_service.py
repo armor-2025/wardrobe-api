@@ -137,6 +137,7 @@ class AIStylistService:
         self, 
         wardrobe_items: List[Dict], 
         occasion: str,
+        tagged_item_id: int = None,
         num_outfits: int = 3
     ) -> Dict[str, Any]:
         """
@@ -151,7 +152,20 @@ class AIStylistService:
         wardrobe_text = self._format_wardrobe_for_prompt(wardrobe_items)
         
         # Build the prompt
-        prompt = OUTFIT_GENERATION_PROMPT.format(
+        # Handle tagged item if provided
+        tagged_prefix = ""
+        if tagged_item_id:
+            tagged_item = next((item for item in wardrobe_items if item["id"] == tagged_item_id), None)
+            if tagged_item:
+                tagged_prefix = TAGGED_ITEM_PREFIX.format(
+                    item_id=tagged_item["id"],
+                    category=tagged_item.get("category", "unknown"),
+                    color=tagged_item.get("color", "unknown"),
+                    description=tagged_item.get("description", "unknown"),
+                    formality=tagged_item.get("formality_level", "casual")
+                ) + "\n\n"
+        
+        prompt = tagged_prefix + OUTFIT_GENERATION_PROMPT.format(
             num_outfits=num_outfits,
             occasion=occasion,
             wardrobe_items=wardrobe_text
@@ -281,3 +295,14 @@ def get_stylist_service() -> AIStylistService:
     if _stylist_service is None:
         _stylist_service = AIStylistService()
     return _stylist_service
+
+
+TAGGED_ITEM_PREFIX = """IMPORTANT: The user has selected this specific item to build outfits around. 
+This item is FIXED and MUST be included in EVERY outfit:
+- Item ID: {item_id}
+- Category: {category}
+- Color: {color}
+- Description: {description}
+- Formality: {formality}
+
+Build all outfits around this piece. Do not remove or substitute it."""

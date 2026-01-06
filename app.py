@@ -3397,6 +3397,7 @@ from ai_stylist_service import get_stylist_service
 @app.post("/stylist/generate-outfits")
 async def generate_outfits(
     occasion: str,
+    tagged_item_id: int = None,
     num_outfits: int = 3,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
@@ -3436,7 +3437,7 @@ async def generate_outfits(
         })
     
     stylist = get_stylist_service()
-    result = await stylist.generate_outfits(wardrobe_data, occasion, num_outfits)
+    result = await stylist.generate_outfits(wardrobe_data, occasion, num_outfits, tagged_item_id)
     
     # If successful, enrich with image URLs
     if "outfits" in result:
@@ -3472,6 +3473,7 @@ async def get_styling_advice(
 @app.post("/stylist/message")
 async def handle_stylist_message(
     message: str,
+    tagged_item_id: int = None,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -3516,7 +3518,7 @@ async def handle_stylist_message(
                 "secondary_colours": item.secondary_colours or []
             })
         
-        result = await stylist.generate_outfits(wardrobe_data, message, 3)
+        result = await stylist.generate_outfits(wardrobe_data, message, 3, tagged_item_id)
         
         if "error" in result:
             return {"type": "error", **result}
