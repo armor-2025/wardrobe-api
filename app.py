@@ -3397,7 +3397,7 @@ from ai_stylist_service import get_stylist_service
 @app.post("/stylist/generate-outfits")
 async def generate_outfits(
     occasion: str,
-    tagged_item_id: int = None,
+    tagged_item_id: str = None,
     num_outfits: int = 3,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
@@ -3473,7 +3473,7 @@ async def get_styling_advice(
 @app.post("/stylist/message")
 async def handle_stylist_message(
     message: str,
-    tagged_item_id: int = None,
+    tagged_item_id: str = None,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -3488,6 +3488,14 @@ async def handle_stylist_message(
     user = get_current_user(db, token)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Handle tagged_item_id - convert from string "null" to actual None
+    actual_tagged_id = None
+    if tagged_item_id and tagged_item_id != "null" and tagged_item_id != "":
+        try:
+            actual_tagged_id = int(tagged_item_id)
+        except ValueError:
+            actual_tagged_id = None
     
     stylist = get_stylist_service()
     message_type = stylist.detect_message_type(message)
@@ -3518,7 +3526,7 @@ async def handle_stylist_message(
                 "secondary_colours": item.secondary_colours or []
             })
         
-        result = await stylist.generate_outfits(wardrobe_data, message, 3, tagged_item_id)
+        result = await stylist.generate_outfits(wardrobe_data, message, 3, actual_tagged_id)
         
         if "error" in result:
             return {"type": "error", **result}
@@ -3531,7 +3539,7 @@ async def handle_stylist_message(
                 if item_id and item_id in item_map:
                     outfit["item_details"][slot] = item_map[item_id]
         
-        return {"type": "outfits", **result}
+        return {"occasions": [{"occasion_title": result.get("occasion_title", "Your Outfit"), "outfits": result.get("outfits", [])}]}
     
     else:
         # Return styling advice
