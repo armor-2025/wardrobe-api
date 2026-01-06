@@ -3386,3 +3386,220 @@ async def add_description_column(db: Session = Depends(get_db)):
         return {"status": "success", "message": "Description column added"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+# =============================================================================
+# AI STYLIST ENDPOINTS
+# =============================================================================
+
+from ai_stylist_service import get_stylist_service
+
+@app.post("/stylist/generate-outfits")
+async def generate_outfits(
+    occasion: str,
+    num_outfits: int = 3,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Generate outfit combinations for a given occasion"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # Get user's wardrobe items with styling metadata
+    items = db.query(WardrobeItem).filter(WardrobeItem.user_id == user.id).all()
+    
+    if not items:
+        return {
+            "error": "Add a few wardrobe items to get outfit ideas",
+            "type": "empty_wardrobe"
+        }
+    
+    # Convert to dict format for the stylist service
+    wardrobe_data = []
+    for item in items:
+        wardrobe_data.append({
+            "id": item.id,
+            "category": item.category,
+            "color": item.color,
+            "description": item.description or item.fabric,
+            "image_url": item.image_url,
+            "formality_level": item.formality_level or "casual",
+            "silhouette": item.silhouette or "regular",
+            "material": item.material or "unknown",
+            "subcategory": item.subcategory or "unknown",
+            "secondary_colours": item.secondary_colours or []
+        })
+    
+    stylist = get_stylist_service()
+    result = await stylist.generate_outfits(wardrobe_data, occasion, num_outfits)
+    
+    # If successful, enrich with image URLs
+    if "outfits" in result:
+        item_map = {item["id"]: item for item in wardrobe_data}
+        for outfit in result["outfits"]:
+            outfit["item_details"] = {}
+            for slot, item_id in outfit["items"].items():
+                if item_id and item_id in item_map:
+                    outfit["item_details"][slot] = item_map[item_id]
+    
+    return result
+
+
+@app.post("/stylist/advice")
+async def get_styling_advice(
+    question: str,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Get styling advice for a question"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    stylist = get_stylist_service()
+    return await stylist.get_styling_advice(question)
+
+
+@app.post("/stylist/message")
+async def handle_stylist_message(
+    message: str,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Main stylist endpoint - detects message type and routes accordingly.
+    Returns either outfit suggestions or styling advice.
+    """
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    stylist = get_stylist_service()
+    message_type = stylist.detect_message_type(message)
+    
+    if message_type == "occasion":
+        # Get wardrobe and generate outfits
+        items = db.query(WardrobeItem).filter(WardrobeItem.user_id == user.id).all()
+        
+        if not items:
+            return {
+                "type": "error",
+                "error": "Add a few wardrobe items to get outfit ideas",
+                "error_type": "empty_wardrobe"
+            }
+        
+        wardrobe_data = []
+        for item in items:
+            wardrobe_data.append({
+                "id": item.id,
+                "category": item.category,
+                "color": item.color,
+                "description": item.description or item.fabric,
+                "image_url": item.image_url,
+                "formality_level": item.formality_level or "casual",
+                "silhouette": item.silhouette or "regular",
+                "material": item.material or "unknown",
+                "subcategory": item.subcategory or "unknown",
+                "secondary_colours": item.secondary_colours or []
+            })
+        
+        result = await stylist.generate_outfits(wardrobe_data, message, 3)
+        
+        if "error" in result:
+            return {"type": "error", **result}
+        
+        # Enrich with image URLs
+        item_map = {item["id"]: item for item in wardrobe_data}
+        for outfit in result.get("outfits", []):
+            outfit["item_details"] = {}
+            for slot, item_id in outfit["items"].items():
+                if item_id and item_id in item_map:
+                    outfit["item_details"][slot] = item_map[item_id]
+        
+        return {"type": "outfits", **result}
+    
+    else:
+        # Return styling advice
+        advice = await stylist.get_styling_advice(message)
+        return {"type": "advice", **advice}
+
+
+@app.get("/stylist/preload-occasions")
+async def get_preload_occasions(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Get preloaded outfit suggestions for common occasions.
+    Used for initial page load of AI Stylist tab.
+    """
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(' ')[1]
+    user = get_current_user(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # Get wardrobe
+    items = db.query(WardrobeItem).filter(WardrobeItem.user_id == user.id).all()
+    
+    if not items:
+        return {
+            "error": "Add a few wardrobe items to get outfit ideas",
+            "type": "empty_wardrobe",
+            "occasions": []
+        }
+    
+    wardrobe_data = []
+    for item in items:
+        wardrobe_data.append({
+            "id": item.id,
+            "category": item.category,
+            "color": item.color,
+            "description": item.description or item.fabric,
+            "image_url": item.image_url,
+            "formality_level": item.formality_level or "casual",
+            "silhouette": item.silhouette or "regular",
+            "material": item.material or "unknown",
+            "subcategory": item.subcategory or "unknown",
+            "secondary_colours": item.secondary_colours or []
+        })
+    
+    stylist = get_stylist_service()
+    
+    # Generate for 3 common occasions
+    preload_occasions = [
+        "casual everyday",
+        "smart casual work",
+        "weekend brunch"
+    ]
+    
+    occasions = []
+    item_map = {item["id"]: item for item in wardrobe_data}
+    
+    for occasion in preload_occasions:
+        result = await stylist.generate_outfits(wardrobe_data, occasion, 3)
+        if "outfits" in result:
+            # Enrich with image URLs
+            for outfit in result["outfits"]:
+                outfit["item_details"] = {}
+                for slot, item_id in outfit["items"].items():
+                    if item_id and item_id in item_map:
+                        outfit["item_details"][slot] = item_map[item_id]
+            occasions.append(result)
+    
+    return {"occasions": occasions}
