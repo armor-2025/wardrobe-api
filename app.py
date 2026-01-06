@@ -3174,10 +3174,7 @@ async def process_batch_background(user_id: int, queue_id: str, image_urls: List
             # Analyze
             vision = get_vision_service()
             analysis = await vision.analyze_upload(str(temp_path))
-    
-    # Extract styling metadata
-    styling_service = get_styling_metadata_service()
-            
+
             items = analysis.get("items", [])
             image_type = analysis.get("type", "single_item")
             
