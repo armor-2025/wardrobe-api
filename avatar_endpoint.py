@@ -131,7 +131,8 @@ async def generate_avatar(
         
         # Build prompt with identity anchoring
         prompt = f"""### IDENTITY REFERENCE (MANDATORY)
-- **Image 1 (Full Body):** Use as the source for body proportions, pose, and skin tone.
+- **Image 1 (Full Body):** Use as the source for body proportions and pose.
+- **CRITICAL - Skin Tone:** Preserve the EXACT skin tone from the source images. Do NOT lighten or alter the complexion in any way.
 - **Image 2 (Face Close-up):** Use as the PRIMARY source for all facial features, eye color, skin texture, and fine details.
 - **Instruction:** Synthesize the high-detail facial features from Image 2 onto the head of the subject.
 
