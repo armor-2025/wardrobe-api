@@ -164,12 +164,16 @@ Apply: "{styling_notes.strip()}" """
     identity_anchor = ""
     face_instruction = ""
     if has_face_closeup:
-        identity_anchor = """<identity_reference>
+        identity_anchor = """<subject_identity>
+Images 1 and 2 show THE SAME PERSON. Generate this exact person wearing the garments.
+</subject_identity>
+
+<identity_reference>
 Image 1 (Face Close-up): Use strictly for facial features, skin texture, eye color, and expression. This is the IDENTITY ANCHOR.
 </identity_reference>
 
 <pose_reference>
-Image 2 (Full Body): Reference ONLY for body shape, size, and proportions. Do NOT copy the pose or face from this image.
+Image 2 (Full Body): Same person as Image 1. Use for body shape, size, and proportions. The face in Image 1 shows more detail - use that for facial features.
 </pose_reference>
 
 <garment_instructions>
