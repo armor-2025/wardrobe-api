@@ -222,8 +222,8 @@ Analyze the provided garment images carefully. Apply them in the following order
 - 85mm prime lens, eye-level. High micro-contrast and sharp focus on garment texture. No wide-angle distortion.
 
 ### OUTPUT REQUIREMENTS
-- Background: Light grey-white studio (#fafafa) with soft directional lighting from 45-degree angle
-- Lighting: Diffused key light to create subtle shadows in garment folds. High micro-contrast to preserve texture on light fabrics. Avoid flat high-key lighting.
+- Background: Light matte-grey studio (#fafafa) with soft, even natural lighting
+- Lighting: Broad diffused softbox lighting like natural window light. Even illumination to minimize harsh shadows while preserving garment texture detail.
 - Sharp focus on garment textures (leather grain, fabric weave, stitching)
 - All {num_items} garments clearly visible and accurate to source images
 - Photorealistic, high-fashion editorial quality result
