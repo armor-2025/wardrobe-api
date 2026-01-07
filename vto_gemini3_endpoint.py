@@ -62,6 +62,13 @@ def convert_to_png(image_bytes: bytes) -> bytes:
     return output.getvalue()
 
 
+def validate_single_portrait(png_bytes: bytes) -> bool:
+    """Return True if image is portrait (not a gallery)"""
+    img = Image.open(io.BytesIO(png_bytes))
+    width, height = img.size
+    return height > width  # Portrait = valid
+
+
 def base64_to_part(b64_string: str) -> Part:
     image_bytes = base64.b64decode(b64_string)
     return Part.from_bytes(data=image_bytes, mime_type="image/png")
@@ -275,6 +282,8 @@ async def generate_vto(request: VTORequest):
         for part in response.candidates[0].content.parts:
             if hasattr(part, 'inline_data') and part.inline_data:
                 png_bytes = convert_to_png(part.inline_data.data)
+                if not validate_single_portrait(png_bytes):
+                    return VTOResponse(success=False, error="Generation produced gallery instead of single image - please retry", items_count=len(request.garments))
                 result_base64 = base64.b64encode(png_bytes).decode('utf-8')
                 return VTOResponse(
                     success=True,
