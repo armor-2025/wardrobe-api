@@ -261,7 +261,7 @@ async def generate_vto(request: VTORequest):
         
         # Build contents in correct order
         if has_face_closeup:
-            contents = [prompt, face_part, model_part] + garment_parts
+            contents = ["FACE ANCHOR - Use this face, makeup, skin, expression:", face_part, "BODY ANCHOR - Use proportions only, IGNORE this face:", model_part, "GARMENTS - Apply with 100% fidelity:"] + garment_parts + [prompt]
         else:
             contents = [prompt, model_part] + garment_parts
         
