@@ -265,7 +265,7 @@ class AIStylistService:
             'brunch', 'lunch', 'coffee', 'drinks', 'work', 'office',
             'casual', 'formal', 'smart', 'pub', 'bar', 'restaurant',
             'birthday', 'event', 'occasion', 'going to', 'attending',
-            'dressing for', 'outfit for', 'what to wear to', 'wear to'
+            'dressing for', 'outfit for', 'what to wear to', 'wear to', 'holiday', 'vacation', 'trip', 'skiing', 'beach', 'travel'
         ]
         
         advice_patterns = [
@@ -276,7 +276,7 @@ class AIStylistService:
         
         for pattern in advice_patterns:
             if pattern in message_lower:
-                return "advice"
+                return "occasion"
         
         for pattern in occasion_patterns:
             if pattern in message_lower:
@@ -285,7 +285,7 @@ class AIStylistService:
         if len(message.split()) <= 5:
             return "occasion"
         
-        return "advice"
+        return "occasion"
 
 
 _stylist_service = None
