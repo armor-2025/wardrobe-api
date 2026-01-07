@@ -169,14 +169,14 @@ Image 1 (Face Close-up): Use strictly for facial features, skin texture, eye col
 </identity_reference>
 
 <pose_reference>
-Image 2 (Full Body): Use strictly for body silhouette, height, proportions, and standing pose. Map all garments onto this specific body frame.
+Image 2 (Full Body): Reference ONLY for body shape, size, and proportions. Do NOT copy the pose or face from this image.
 </pose_reference>
 
 <garment_instructions>
 Images 3+: Render these garments with 100% texture fidelity. Do not simplify fabric patterns.
 </garment_instructions>
 
-**IDENTITY LOCK:** The face MUST match Image 1 exactly. The body pose MUST match Image 2 exactly.
+**IDENTITY LOCK:** Face MUST match Image 1 exactly. Use standard editorial pose: standing straight, arms relaxed at sides. Body PROPORTIONS (not pose) from Image 2.
 
 """
         face_instruction = " The face MUST match Image 1 (face closeup) exactly."
