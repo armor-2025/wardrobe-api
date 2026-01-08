@@ -370,7 +370,7 @@ def conversational_search(
     
     # Return parsed data + mock products (replace with real search later)
     
-    return {
+        return {
         "success": True,
         "parsed_query": parsed,
         "search_params": search_params,
@@ -508,7 +508,7 @@ def upload_wardrobe_item(
     db.refresh(item)
     
     
-    return {
+        return {
         "id": item.id,
         "image_url": item.image_url,
         "tags": tags
@@ -642,7 +642,7 @@ async def upload_wardrobe_file(
     db.refresh(item)
     
     
-    return {
+        return {
         "id": item.id,
         "image_url": image_url,
         "tags": tags,
@@ -722,7 +722,7 @@ def update_wardrobe_item(
     db.refresh(item)
     
     
-    return {
+        return {
         "id": item.id,
         "image_url": item.image_url,
         "category": item.category,
@@ -771,7 +771,7 @@ def get_wardrobe_items(
     items = query.all()
     
     
-    return {
+        return {
         "items": [
             {
                 "id": item.id,
@@ -839,7 +839,7 @@ def add_favorite(
     db.refresh(favorite)
     
     
-    return {
+        return {
         "id": favorite.id,
         "product_id": favorite.product_id,
         "title": favorite.title,
@@ -866,7 +866,7 @@ def get_favorites(
     favs = db.query(Favorite).filter(Favorite.user_id == user.id).all()
     
     
-    return {
+        return {
         "favorites": [
             {
                 "id": fav.id,
@@ -968,7 +968,7 @@ def prepare_favorite_for_canvas(
     ).start()
     
     
-    return {
+        return {
         "id": favorite.id,
         "status": "pending",
         "message": "Preparing canvas image..."
@@ -1009,7 +1009,7 @@ def create_outfit(
     db.refresh(outfit)
     
     
-    return {
+        return {
         "id": outfit.id,
         "name": outfit.name,
         "outfit_data": json.loads(outfit.outfit_data),
@@ -1032,7 +1032,7 @@ def get_outfits(
     outfits = db.query(Outfit).filter(Outfit.user_id == user.id).all()
     
     
-    return {
+        return {
         "outfits": [
             {
                 "id": outfit.id,
@@ -1076,7 +1076,7 @@ def update_outfit(
     db.refresh(outfit)
     
     
-    return {
+        return {
         "id": outfit.id,
         "name": outfit.name,
         "outfit_data": json.loads(outfit.outfit_data),
@@ -1137,7 +1137,7 @@ def get_price_history(
     price_history = json.loads(fav.price_history) if fav.price_history else []
     
     
-    return {
+        return {
         "product_id": fav.product_id,
         "title": fav.title,
         "current_price": fav.price,
@@ -1224,7 +1224,7 @@ def check_all_prices(db: Session = Depends(get_db)):
     db.commit()
     
     
-    return {
+        return {
         "checked": len(favorites),
         "updated": updated_count,
         "alerts": alerts
@@ -1284,7 +1284,7 @@ def set_size_preferences(
     db.refresh(pref)
     
     
-    return {
+        return {
         "message": "Size preferences saved",
         "preferences": {
             "enabled": pref.enabled,
@@ -1327,7 +1327,7 @@ def get_size_preferences(
 
     
     
-    return {
+        return {
         "enabled": pref.enabled,
         "gender_preference": pref.gender_preference,
         "tops": json.loads(pref.tops) if pref.tops else [],
@@ -1426,7 +1426,7 @@ def check_all_stock(db: Session = Depends(get_db)):
     db.commit()
     
     
-    return {
+        return {
         "checked": len(favorites),
         "updated": updated_count,
         "alerts": alerts
@@ -1457,7 +1457,7 @@ def get_stock_status(
         raise HTTPException(status_code=404, detail="Favorite not found")
     
     
-    return {
+        return {
         "product_id": fav.product_id,
         "title": fav.title,
         "stock_status": fav.stock_status or "unknown",
@@ -1503,7 +1503,7 @@ def check_stock_now(
     db.commit()
     
     
-    return {
+        return {
         "product": fav.title,
         "stock_status": stock_info['status'],
         "stock_level": stock_info.get('level'),
@@ -1633,7 +1633,7 @@ async def upload_wardrobe_smart(
         gc.collect()
         
         
-    return {
+        return {
             "type": "single_item",
             "queue_id": None,
             "total_items": 1,
@@ -1716,7 +1716,7 @@ async def upload_wardrobe_smart(
     gc.collect()
     
     
-    return {
+        return {
         "type": "outfit",
         "queue_id": queue.queue_id,
         "total_items": queue.total_items,
@@ -1801,8 +1801,7 @@ async def save_and_next_item(
     
     
     if not queue:
-        
-    return {
+        return {
             "saved_item_id": item.id,
             "has_next": False,
             "next_item": None
@@ -1827,7 +1826,7 @@ async def save_and_next_item(
         if not next_queued:
             delete_queue(queue_id)
             
-    return {
+        return {
                 "saved_item_id": item.id,
                 "has_next": False,
                 "next_item": None
@@ -1841,7 +1840,7 @@ async def save_and_next_item(
     next_image_url = upload_to_firebase(next_queued.image_bytes, unique_filename, content_type="image/png")
     
     
-    return {
+        return {
         "saved_item_id": item.id,
         "has_next": True,
         "queue_id": queue_id,
@@ -1908,7 +1907,7 @@ async def skip_item(
     next_image_url = upload_to_firebase(next_queued.image_bytes, unique_filename, content_type="image/png")
     
     
-    return {
+        return {
         "has_next": True,
         "queue_id": queue_id,
         "total_items": queue.total_items,
@@ -2124,7 +2123,7 @@ async def prettify_item(
         
         prettified_url = upload_image_to_firebase(img_bytes, "prettified")
         
-    return {
+        return {
             "success": True,
             "prettified_url": prettified_url,
             "cost": 0.015
@@ -2198,7 +2197,7 @@ async def prettify_item_v2(
         prettified_url = upload_image_to_firebase(img_bytes, "prettified")
         
         
-    return {
+        return {
             "success": True,
             "prettified_url": prettified_url,
             "cost": 0.015
@@ -2280,7 +2279,7 @@ This is like placing stickers on a photo - the photo stays identical, you just a
                 if hasattr(part, 'inline_data') and part.inline_data.data:
                     result_b64 = base64.b64encode(part.inline_data.data).decode()
                     
-    return {
+        return {
                         "success": True,
                         "result_image_base64": result_b64,
                         "cost": 0.04
@@ -2360,7 +2359,7 @@ CRITICAL REQUIREMENTS:
                 if hasattr(part, 'inline_data') and part.inline_data.data:
                     result_b64 = base64.b64encode(part.inline_data.data).decode()
                     
-    return {
+        return {
                         "success": True,
                         "result_image_base64": result_b64
                     }
@@ -2446,7 +2445,7 @@ def get_user_profile(
         raise HTTPException(status_code=401, detail="Invalid token")
     
     
-    return {
+        return {
         "id": user.id,
         "email": user.email,
         "avatar_url": user.avatar_url,
@@ -2574,7 +2573,7 @@ async def generate_vto_from_wardrobe(
             vto_url = upload_to_firebase(transparent_bytes, vto_path, content_type='image/png')
             
             
-    return {
+        return {
                 "success": True,
                 "vto_url": vto_url,
                 "items_count": len(garments)
@@ -2583,7 +2582,7 @@ async def generate_vto_from_wardrobe(
 
         
         
-    return {
+        return {
             "success": False,
             "error": result.error or "VTO generation failed"
         }
@@ -3063,7 +3062,7 @@ async def get_latest_vto(
         return {"status": "none", "vto_url": None}
     
     
-    return {
+        return {
         "status": job.status,
         "vto_url": job.vto_url,
         "job_id": job.id
@@ -3215,7 +3214,7 @@ async def batch_upload(
         ))
     
     
-    return {
+        return {
         "queue_id": queue.queue_id,
         "total_images": len(image_urls),
         "processing_remaining": len(remaining_urls),
@@ -3362,7 +3361,7 @@ async def get_batch_status(
         raise HTTPException(status_code=404, detail="Queue not found")
     
     
-    return {
+        return {
         "queue_id": queue_id,
         "total_items": queue.total_items,
         "current_index": queue.current_index,
@@ -3402,7 +3401,7 @@ async def login_debug(request: Request):
     body = await request.body()
     headers = dict(request.headers)
     
-    return {
+        return {
         "body_raw": body.decode('utf-8'),
         "headers": headers,
         "content_type": headers.get('content-type')
@@ -3492,7 +3491,7 @@ async def generate_outfits(
     
     if not items:
         
-    return {
+        return {
             "error": "Add a few wardrobe items to get outfit ideas",
             "type": "empty_wardrobe"
         }
@@ -3609,7 +3608,7 @@ async def handle_stylist_message(
         
         if not items:
             
-    return {
+        return {
                 "type": "error",
                 "error": "Add a few wardrobe items to get outfit ideas",
                 "error_type": "empty_wardrobe"
@@ -3671,7 +3670,7 @@ async def get_preload_occasions(
     
     if not items:
         
-    return {
+        return {
             "error": "Add a few wardrobe items to get outfit ideas",
             "type": "empty_wardrobe",
             "occasions": []
