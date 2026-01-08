@@ -370,7 +370,7 @@ def conversational_search(
     
     # Return parsed data + mock products (replace with real search later)
     
-        return {
+    return {
         "success": True,
         "parsed_query": parsed,
         "search_params": search_params,
