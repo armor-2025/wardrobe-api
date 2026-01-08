@@ -369,6 +369,7 @@ def conversational_search(
     print(f"DEBUG conversational: search_params = {search_params}")
     
     # Return parsed data + mock products (replace with real search later)
+    
     return {
         "success": True,
         "parsed_query": parsed,
@@ -504,6 +505,7 @@ def upload_wardrobe_item(
     db.commit()
     db.refresh(item)
     
+    
     return {
         "id": item.id,
         "image_url": item.image_url,
@@ -637,6 +639,7 @@ async def upload_wardrobe_file(
     db.commit()
     db.refresh(item)
     
+    
     return {
         "id": item.id,
         "image_url": image_url,
@@ -716,6 +719,7 @@ def update_wardrobe_item(
     db.commit()
     db.refresh(item)
     
+    
     return {
         "id": item.id,
         "image_url": item.image_url,
@@ -763,6 +767,7 @@ def get_wardrobe_items(
         query = query.filter(WardrobeItem.season == season)
     
     items = query.all()
+    
     
     return {
         "items": [
@@ -829,6 +834,7 @@ def add_favorite(
     db.commit()
     db.refresh(favorite)
     
+    
     return {
         "id": favorite.id,
         "product_id": favorite.product_id,
@@ -854,6 +860,7 @@ def get_favorites(
         raise HTTPException(status_code=401, detail="Invalid token")
     
     favs = db.query(Favorite).filter(Favorite.user_id == user.id).all()
+    
     
     return {
         "favorites": [
@@ -927,7 +934,8 @@ def prepare_favorite_for_canvas(
     
     # If already processed, return existing canvas image
     if favorite.canvas_image_url and favorite.canvas_processing_status == "complete":
-        return {
+        
+    return {
             "id": favorite.id,
             "canvas_image_url": favorite.canvas_image_url,
             "status": "complete",
@@ -936,7 +944,8 @@ def prepare_favorite_for_canvas(
     
     # If currently processing, return status
     if favorite.canvas_processing_status == "processing":
-        return {
+        
+    return {
             "id": favorite.id,
             "status": "processing",
             "message": "Background removal in progress..."
@@ -952,6 +961,7 @@ def prepare_favorite_for_canvas(
         args=(favorite.id,),
         daemon=True
     ).start()
+    
     
     return {
         "id": favorite.id,
@@ -993,6 +1003,7 @@ def create_outfit(
     db.commit()
     db.refresh(outfit)
     
+    
     return {
         "id": outfit.id,
         "name": outfit.name,
@@ -1014,6 +1025,7 @@ def get_outfits(
         raise HTTPException(status_code=401, detail="Invalid token")
     
     outfits = db.query(Outfit).filter(Outfit.user_id == user.id).all()
+    
     
     return {
         "outfits": [
@@ -1055,6 +1067,7 @@ def update_outfit(
     outfit.outfit_data = json.dumps(req.outfit_data)
     db.commit()
     db.refresh(outfit)
+    
     
     return {
         "id": outfit.id,
@@ -1115,6 +1128,7 @@ def get_price_history(
         raise HTTPException(status_code=404, detail="Favorite not found")
     
     price_history = json.loads(fav.price_history) if fav.price_history else []
+    
     
     return {
         "product_id": fav.product_id,
@@ -1202,6 +1216,7 @@ def check_all_prices(db: Session = Depends(get_db)):
     
     db.commit()
     
+    
     return {
         "checked": len(favorites),
         "updated": updated_count,
@@ -1261,6 +1276,7 @@ def set_size_preferences(
     db.commit()
     db.refresh(pref)
     
+    
     return {
         "message": "Size preferences saved",
         "preferences": {
@@ -1290,7 +1306,8 @@ def get_size_preferences(
     pref = db.query(SizePreference).filter(SizePreference.user_id == user.id).first()
     
     if not pref:
-        return {
+        
+    return {
             "enabled": False,
             "gender_preference": "women",
             "tops": [],
@@ -1298,6 +1315,7 @@ def get_size_preferences(
             "shoes": [],
             "dresses": []
         }
+    
     
     return {
         "enabled": pref.enabled,
@@ -1397,6 +1415,7 @@ def check_all_stock(db: Session = Depends(get_db)):
     
     db.commit()
     
+    
     return {
         "checked": len(favorites),
         "updated": updated_count,
@@ -1426,6 +1445,7 @@ def get_stock_status(
     
     if not fav:
         raise HTTPException(status_code=404, detail="Favorite not found")
+    
     
     return {
         "product_id": fav.product_id,
@@ -1471,6 +1491,7 @@ def check_stock_now(
     fav.stock_level = stock_info.get('level')
     fav.last_stock_check = datetime.utcnow()
     db.commit()
+    
     
     return {
         "product": fav.title,
@@ -1599,7 +1620,8 @@ async def upload_wardrobe_smart(
         import gc
         gc.collect()
         
-        return {
+        
+    return {
             "type": "single_item",
             "queue_id": None,
             "total_items": 1,
@@ -1676,6 +1698,7 @@ async def upload_wardrobe_smart(
     del file_bytes
     import gc
     gc.collect()
+    
     
     return {
         "type": "outfit",
@@ -1760,7 +1783,8 @@ async def save_and_next_item(
     
     
     if not queue:
-        return {
+        
+    return {
             "saved_item_id": item.id,
             "has_next": False,
             "next_item": None
@@ -1782,7 +1806,8 @@ async def save_and_next_item(
         
         if not next_queued:
             delete_queue(queue_id)
-            return {
+            
+    return {
                 "saved_item_id": item.id,
                 "has_next": False,
                 "next_item": None
@@ -1792,6 +1817,7 @@ async def save_and_next_item(
     from avatar_endpoint import upload_to_firebase
     unique_filename = f"wardrobe/{user.id}/{uuid.uuid4()}.png"
     next_image_url = upload_to_firebase(next_queued.image_bytes, unique_filename, content_type="image/png")
+    
     
     return {
         "saved_item_id": item.id,
@@ -1856,6 +1882,7 @@ async def skip_item(
     from avatar_endpoint import upload_to_firebase
     unique_filename = f"wardrobe/{user.id}/{uuid.uuid4()}.png"
     next_image_url = upload_to_firebase(next_queued.image_bytes, unique_filename, content_type="image/png")
+    
     
     return {
         "has_next": True,
@@ -2070,7 +2097,8 @@ async def prettify_item(
         img_bytes = img_buffer.getvalue()
         
         prettified_url = upload_image_to_firebase(img_bytes, "prettified")
-        return {
+        
+    return {
             "success": True,
             "prettified_url": prettified_url,
             "cost": 0.015
@@ -2141,7 +2169,8 @@ async def prettify_item_v2(
         
         prettified_url = upload_image_to_firebase(img_bytes, "prettified")
         
-        return {
+        
+    return {
             "success": True,
             "prettified_url": prettified_url,
             "cost": 0.015
@@ -2220,7 +2249,8 @@ This is like placing stickers on a photo - the photo stays identical, you just a
             for part in response.candidates[0].content.parts:
                 if hasattr(part, 'inline_data') and part.inline_data.data:
                     result_b64 = base64.b64encode(part.inline_data.data).decode()
-                    return {
+                    
+    return {
                         "success": True,
                         "result_image_base64": result_b64,
                         "cost": 0.04
@@ -2297,7 +2327,8 @@ CRITICAL REQUIREMENTS:
             for part in response.candidates[0].content.parts:
                 if hasattr(part, 'inline_data') and part.inline_data.data:
                     result_b64 = base64.b64encode(part.inline_data.data).decode()
-                    return {
+                    
+    return {
                         "success": True,
                         "result_image_base64": result_b64
                     }
@@ -2379,6 +2410,7 @@ def get_user_profile(
     user = get_current_user(db, token)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
+    
     
     return {
         "id": user.id,
@@ -2507,13 +2539,15 @@ async def generate_vto_from_wardrobe(
             
             vto_url = upload_to_firebase(transparent_bytes, vto_path, content_type='image/png')
             
-            return {
+            
+    return {
                 "success": True,
                 "vto_url": vto_url,
                 "items_count": len(garments)
             }
         
-        return {
+        
+    return {
             "success": False,
             "error": result.error or "VTO generation failed"
         }
@@ -2990,6 +3024,7 @@ async def get_latest_vto(
     if not job:
         return {"status": "none", "vto_url": None}
     
+    
     return {
         "status": job.status,
         "vto_url": job.vto_url,
@@ -3141,6 +3176,7 @@ async def batch_upload(
             image_urls=remaining_urls
         ))
     
+    
     return {
         "queue_id": queue.queue_id,
         "total_images": len(image_urls),
@@ -3287,6 +3323,7 @@ async def get_batch_status(
     if not queue:
         raise HTTPException(status_code=404, detail="Queue not found")
     
+    
     return {
         "queue_id": queue_id,
         "total_items": queue.total_items,
@@ -3326,6 +3363,7 @@ async def login_debug(request: Request):
     """Debug endpoint to see what FlutterFlow sends"""
     body = await request.body()
     headers = dict(request.headers)
+    
     return {
         "body_raw": body.decode('utf-8'),
         "headers": headers,
@@ -3397,7 +3435,7 @@ from ai_stylist_service import get_stylist_service
 @app.post("/stylist/generate-outfits")
 async def generate_outfits(
     occasion: str,
-    tagged_item_id: str = None,
+    tagged_item_ids: str = None,
     num_outfits: int = 3,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
@@ -3415,7 +3453,8 @@ async def generate_outfits(
     items = db.query(WardrobeItem).filter(WardrobeItem.user_id == user.id).all()
     
     if not items:
-        return {
+        
+    return {
             "error": "Add a few wardrobe items to get outfit ideas",
             "type": "empty_wardrobe"
         }
@@ -3436,8 +3475,16 @@ async def generate_outfits(
             "secondary_colours": item.secondary_colours or []
         })
     
+    # Parse tagged_item_ids
+    actual_tagged_ids = None
+    if tagged_item_ids and tagged_item_ids != "null" and tagged_item_ids != "":
+        try:
+            actual_tagged_ids = [int(x.strip()) for x in tagged_item_ids.split(",") if x.strip()]
+        except ValueError:
+            actual_tagged_ids = None
+    
     stylist = get_stylist_service()
-    result = await stylist.generate_outfits(wardrobe_data, occasion, num_outfits, tagged_item_id)
+    result = await stylist.generate_outfits(wardrobe_data, occasion, num_outfits, actual_tagged_ids)
     
     # If successful, enrich with image URLs
     if "outfits" in result:
@@ -3466,6 +3513,14 @@ async def get_styling_advice(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
     
+    # Parse tagged_item_ids
+    actual_tagged_ids = None
+    if tagged_item_ids and tagged_item_ids != "null" and tagged_item_ids != "":
+        try:
+            actual_tagged_ids = [int(x.strip()) for x in tagged_item_ids.split(",") if x.strip()]
+        except ValueError:
+            actual_tagged_ids = None
+    
     stylist = get_stylist_service()
     return await stylist.get_styling_advice(question)
 
@@ -3473,7 +3528,7 @@ async def get_styling_advice(
 @app.post("/stylist/message")
 async def handle_stylist_message(
     message: str,
-    tagged_item_id: str = None,
+    tagged_item_ids: str = None,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -3489,13 +3544,21 @@ async def handle_stylist_message(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    # Handle tagged_item_id - convert from string "null" to actual None
-    actual_tagged_id = None
-    if tagged_item_id and tagged_item_id != "null" and tagged_item_id != "":
+    # Handle tagged_item_ids - convert from comma-separated string to list of ints
+    actual_tagged_ids = None
+    if tagged_item_ids and tagged_item_ids != "null" and tagged_item_ids != "":
         try:
-            actual_tagged_id = int(tagged_item_id)
+            actual_tagged_ids = [int(x.strip()) for x in tagged_item_ids.split(",") if x.strip()]
         except ValueError:
-            actual_tagged_id = None
+            actual_tagged_ids = None
+    
+    # Parse tagged_item_ids
+    actual_tagged_ids = None
+    if tagged_item_ids and tagged_item_ids != "null" and tagged_item_ids != "":
+        try:
+            actual_tagged_ids = [int(x.strip()) for x in tagged_item_ids.split(",") if x.strip()]
+        except ValueError:
+            actual_tagged_ids = None
     
     stylist = get_stylist_service()
     message_type = stylist.detect_message_type(message)
@@ -3505,7 +3568,8 @@ async def handle_stylist_message(
         items = db.query(WardrobeItem).filter(WardrobeItem.user_id == user.id).all()
         
         if not items:
-            return {
+            
+    return {
                 "type": "error",
                 "error": "Add a few wardrobe items to get outfit ideas",
                 "error_type": "empty_wardrobe"
@@ -3526,7 +3590,7 @@ async def handle_stylist_message(
                 "secondary_colours": item.secondary_colours or []
             })
         
-        result = await stylist.generate_outfits(wardrobe_data, message, 3, actual_tagged_id)
+        result = await stylist.generate_outfits(wardrobe_data, message, 3, actual_tagged_ids)
         
         if "error" in result:
             return {"type": "error", **result}
@@ -3541,10 +3605,6 @@ async def handle_stylist_message(
         
         return {"occasions": [{"occasion_title": result.get("occasion_title", "Your Outfit"), "outfits": result.get("outfits", [])}]}
     
-    else:
-        # Return styling advice
-        advice = await stylist.get_styling_advice(message)
-        return {"type": "advice", **advice}
 
 
 @app.get("/stylist/preload-occasions")
@@ -3568,7 +3628,8 @@ async def get_preload_occasions(
     items = db.query(WardrobeItem).filter(WardrobeItem.user_id == user.id).all()
     
     if not items:
-        return {
+        
+    return {
             "error": "Add a few wardrobe items to get outfit ideas",
             "type": "empty_wardrobe",
             "occasions": []
@@ -3588,6 +3649,14 @@ async def get_preload_occasions(
             "subcategory": item.subcategory or "unknown",
             "secondary_colours": item.secondary_colours or []
         })
+    
+    # Parse tagged_item_ids
+    actual_tagged_ids = None
+    if tagged_item_ids and tagged_item_ids != "null" and tagged_item_ids != "":
+        try:
+            actual_tagged_ids = [int(x.strip()) for x in tagged_item_ids.split(",") if x.strip()]
+        except ValueError:
+            actual_tagged_ids = None
     
     stylist = get_stylist_service()
     
