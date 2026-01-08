@@ -508,7 +508,7 @@ def upload_wardrobe_item(
     db.refresh(item)
     
     
-        return {
+    return {
         "id": item.id,
         "image_url": item.image_url,
         "tags": tags
