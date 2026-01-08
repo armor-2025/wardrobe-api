@@ -1353,7 +1353,6 @@ def toggle_size_filter(
     pref = db.query(SizePreference).filter(SizePreference.user_id == user.id).first()
     
     if not pref:
-        return {
         raise HTTPException(status_code=404, detail="No size preferences set")
     
     pref.enabled = not pref.enabled
