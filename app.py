@@ -399,6 +399,8 @@ def conversational_search(
                 "brand": "Premium Brand",
                 "url": "#"
             }
+    
+    # Start background processing
         ],
         "total_results": 3,
         "message": "Mock data - connect retailer APIs for real products"
@@ -783,6 +785,8 @@ def get_wardrobe_items(
                 "season": item.season,
                 "created_at": item.created_at.isoformat()
             }
+    
+    # Start background processing
             for item in items
         ]
     }
@@ -877,6 +881,8 @@ def get_favorites(
                 "product_url": fav.product_url,
                 "created_at": fav.created_at.isoformat()
             }
+    
+    # Start background processing
             for fav in favs
         ]
     }
@@ -934,25 +940,24 @@ def prepare_favorite_for_canvas(
     
     # If already processed, return existing canvas image
     if favorite.canvas_image_url and favorite.canvas_processing_status == "complete":
-        
-    return {
+        return {
             "id": favorite.id,
             "canvas_image_url": favorite.canvas_image_url,
             "status": "complete",
             "message": "Canvas image already ready"
         }
     
+    # Start background processing
+    
     # If currently processing, return status
     if favorite.canvas_processing_status == "processing":
-        
-    return {
+        return {
             "id": favorite.id,
             "status": "processing",
             "message": "Background removal in progress..."
         }
     
     # Start background processing
-    import threading
     favorite.canvas_processing_status = "pending"
     db.commit()
     
@@ -1036,6 +1041,8 @@ def get_outfits(
                 "thumbnail_url": outfit.thumbnail_url,
                 "created_at": outfit.created_at.isoformat()
             }
+    
+    # Start background processing
             for outfit in outfits
         ]
     }
@@ -1287,6 +1294,8 @@ def set_size_preferences(
             "shoes": json.loads(pref.shoes) if pref.shoes else [],
             "dresses": json.loads(pref.dresses) if pref.dresses else []
         }
+    
+    # Start background processing
     }
 
 @app.get("/size-preferences")
@@ -1315,6 +1324,8 @@ def get_size_preferences(
             "shoes": [],
             "dresses": []
         }
+    
+    # Start background processing
     
     
     return {
@@ -1536,6 +1547,8 @@ async def serve_wardrobe_image(filename: str):
             "Access-Control-Allow-Methods": "GET",
             "Access-Control-Allow-Headers": "*",
         }
+    
+    # Start background processing
     )
 
 
@@ -1638,7 +1651,11 @@ async def upload_wardrobe_smart(
                 "secondary_colours": styling_metadata.get("secondary_colours", []),
                 "subcategory": styling_metadata.get("subcategory")
             }
+    
+    # Start background processing
         }
+    
+    # Start background processing
     
     # OUTFIT - segment with SAM 3 and create queue
     print(f"Outfit detected with {len(items)} items, segmenting with SAM 3...")
@@ -1717,6 +1734,8 @@ async def upload_wardrobe_smart(
             "secondary_colours": first_item.secondary_colours,
             "subcategory": first_item.subcategory
         }
+    
+    # Start background processing
     }
 
 
@@ -1790,6 +1809,8 @@ async def save_and_next_item(
             "next_item": None
         }
     
+    # Start background processing
+    
     # Advance to next item
     next_queued = queue.advance()
     
@@ -1812,6 +1833,8 @@ async def save_and_next_item(
                 "has_next": False,
                 "next_item": None
             }
+    
+    # Start background processing
     
     # Upload next item to Firebase
     from avatar_endpoint import upload_to_firebase
@@ -1837,6 +1860,8 @@ async def save_and_next_item(
             "secondary_colours": next_queued.secondary_colours,
             "subcategory": next_queued.subcategory
         }
+    
+    # Start background processing
     }
 
 
@@ -1901,6 +1926,8 @@ async def skip_item(
             "secondary_colours": next_queued.secondary_colours,
             "subcategory": next_queued.subcategory
         }
+    
+    # Start background processing
     }
 
 
@@ -2103,6 +2130,8 @@ async def prettify_item(
             "prettified_url": prettified_url,
             "cost": 0.015
         }
+    
+    # Start background processing
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prettify error: {str(e)}")
@@ -2175,6 +2204,8 @@ async def prettify_item_v2(
             "prettified_url": prettified_url,
             "cost": 0.015
         }
+    
+    # Start background processing
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prettify error: {str(e)}")
@@ -2255,6 +2286,8 @@ This is like placing stickers on a photo - the photo stays identical, you just a
                         "result_image_base64": result_b64,
                         "cost": 0.04
                     }
+    
+    # Start background processing
         
         raise HTTPException(status_code=500, detail="No image generated")
         
@@ -2332,6 +2365,8 @@ CRITICAL REQUIREMENTS:
                         "success": True,
                         "result_image_base64": result_b64
                     }
+    
+    # Start background processing
         
         raise HTTPException(status_code=500, detail="No image generated")
         
@@ -2545,12 +2580,16 @@ async def generate_vto_from_wardrobe(
                 "vto_url": vto_url,
                 "items_count": len(garments)
             }
+    
+    # Start background processing
         
         
     return {
             "success": False,
             "error": result.error or "VTO generation failed"
         }
+    
+    # Start background processing
 
 
 @app.post("/vto/debug-request")
@@ -3459,6 +3498,8 @@ async def generate_outfits(
             "type": "empty_wardrobe"
         }
     
+    # Start background processing
+    
     # Convert to dict format for the stylist service
     wardrobe_data = []
     for item in items:
@@ -3574,6 +3615,8 @@ async def handle_stylist_message(
                 "error": "Add a few wardrobe items to get outfit ideas",
                 "error_type": "empty_wardrobe"
             }
+    
+    # Start background processing
         
         wardrobe_data = []
         for item in items:
@@ -3634,6 +3677,8 @@ async def get_preload_occasions(
             "type": "empty_wardrobe",
             "occasions": []
         }
+    
+    # Start background processing
     
     wardrobe_data = []
     for item in items:
