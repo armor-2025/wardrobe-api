@@ -3397,7 +3397,7 @@ from ai_stylist_service import get_stylist_service
 @app.post("/stylist/generate-outfits")
 async def generate_outfits(
     occasion: str,
-    tagged_item_id: str = None,
+    tagged_item_ids: str = None,
     num_outfits: int = 3,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
@@ -3437,7 +3437,7 @@ async def generate_outfits(
         })
     
     stylist = get_stylist_service()
-    result = await stylist.generate_outfits(wardrobe_data, occasion, num_outfits, tagged_item_id)
+    result = await stylist.generate_outfits(wardrobe_data, occasion, num_outfits, actual_tagged_ids)
     
     # If successful, enrich with image URLs
     if "outfits" in result:
@@ -3473,7 +3473,7 @@ async def get_styling_advice(
 @app.post("/stylist/message")
 async def handle_stylist_message(
     message: str,
-    tagged_item_id: str = None,
+    tagged_item_ids: str = None,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -3489,13 +3489,13 @@ async def handle_stylist_message(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    # Handle tagged_item_id - convert from string "null" to actual None
-    actual_tagged_id = None
-    if tagged_item_id and tagged_item_id != "null" and tagged_item_id != "":
+    # Handle tagged_item_ids - convert from comma-separated string to list of ints
+    actual_tagged_ids = None
+    if tagged_item_ids and tagged_item_ids != "null" and tagged_item_ids != "":
         try:
-            actual_tagged_id = int(tagged_item_id)
+            actual_tagged_ids = [int(x.strip()) for x in tagged_item_ids.split(",") if x.strip()]
         except ValueError:
-            actual_tagged_id = None
+            actual_tagged_ids = None
     
     stylist = get_stylist_service()
     message_type = stylist.detect_message_type(message)
@@ -3526,7 +3526,7 @@ async def handle_stylist_message(
                 "secondary_colours": item.secondary_colours or []
             })
         
-        result = await stylist.generate_outfits(wardrobe_data, message, 3, actual_tagged_id)
+        result = await stylist.generate_outfits(wardrobe_data, message, 3, actual_tagged_ids)
         
         if "error" in result:
             return {"type": "error", **result}

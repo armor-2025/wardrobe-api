@@ -137,7 +137,7 @@ class AIStylistService:
         self, 
         wardrobe_items: List[Dict], 
         occasion: str,
-        tagged_item_id: int = None,
+        tagged_item_ids: List[int] = None,
         num_outfits: int = 3
     ) -> Dict[str, Any]:
         """
@@ -152,18 +152,16 @@ class AIStylistService:
         wardrobe_text = self._format_wardrobe_for_prompt(wardrobe_items)
         
         # Build the prompt
-        # Handle tagged item if provided
+        # Handle tagged items if provided (supports multiple)
         tagged_prefix = ""
-        if tagged_item_id:
-            tagged_item = next((item for item in wardrobe_items if item["id"] == tagged_item_id), None)
-            if tagged_item:
-                tagged_prefix = TAGGED_ITEM_PREFIX.format(
-                    item_id=tagged_item["id"],
-                    category=tagged_item.get("category", "unknown"),
-                    color=tagged_item.get("color", "unknown"),
-                    description=tagged_item.get("description", "unknown"),
-                    formality=tagged_item.get("formality_level", "casual")
-                ) + "\n\n"
+        if tagged_item_ids and len(tagged_item_ids) > 0:
+            tagged_items = [item for item in wardrobe_items if item["id"] in tagged_item_ids]
+            if tagged_items:
+                items_list = []
+                for item in tagged_items:
+                    items_list.append(f"- {item.get('category', 'unknown')} (ID: {item['id']}): {item.get('color', 'unknown')} {item.get('description', 'unknown')}")
+                items_text = "\n".join(items_list)
+                tagged_prefix = f"IMPORTANT: The user has selected these specific items to build outfits around.\nThese items are FIXED and MUST ALL be included in EVERY outfit:\n{items_text}\n\nBuild all outfits around these pieces. Do not remove or substitute them.\n\n"
         
         prompt = tagged_prefix + OUTFIT_GENERATION_PROMPT.format(
             num_outfits=num_outfits,
