@@ -2753,6 +2753,7 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
             t2 = time.time()
             result = await generate_vto(vto_request)
             print(f"[VTO {job_id}] Gemini done in {time.time()-t2:.1f}s")
+            print(f"[VTO {job_id}] Result success: {result.success}")
             
             if result.success and result.image_base64:
                 print(f"[VTO {job_id}] Starting post-processing...")
