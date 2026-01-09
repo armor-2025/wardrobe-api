@@ -3634,24 +3634,43 @@ async def get_preload_occasions(
 
 # Weather helper for AI Stylist
 async def get_weather(lat: float, lon: float) -> dict:
-    """Fetch current weather from OpenWeatherMap"""
+    """Fetch current weather from Open-Meteo (free, no API key)"""
     import httpx
-    api_key = os.getenv("OPENWEATHERMAP_API_KEY")
-    if not api_key:
-        return None
     try:
         async with httpx.AsyncClient() as client:
-            url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={api_key}&units=metric"
+            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&daily=temperature_2m_max,temperature_2m_min&timezone=auto"
             response = await client.get(url)
             if response.status_code == 200:
                 data = response.json()
+                current = data["current_weather"]
+                daily = data["daily"]
+                
+                # Map weather codes to descriptions
+                code = current["weathercode"]
+                if code == 0:
+                    desc, main = "clear sky", "Clear"
+                elif code <= 3:
+                    desc, main = "partly cloudy", "Clouds"
+                elif code <= 48:
+                    desc, main = "foggy", "Fog"
+                elif code <= 55:
+                    desc, main = "drizzle", "Drizzle"
+                elif code <= 65:
+                    desc, main = "rainy", "Rain"
+                elif code <= 77:
+                    desc, main = "snowy", "Snow"
+                elif code <= 82:
+                    desc, main = "rain showers", "Rain"
+                else:
+                    desc, main = "thunderstorm", "Thunderstorm"
+                
                 return {
-                    "temp": round(data["main"]["temp"]),
-                    "feels_like": round(data["main"]["feels_like"]),
-                    "description": data["weather"][0]["description"],
-                    "main": data["weather"][0]["main"],
-                    "temp_min": round(data["main"]["temp_min"]),
-                    "temp_max": round(data["main"]["temp_max"])
+                    "temp": round(current["temperature"]),
+                    "feels_like": round(current["temperature"]),
+                    "description": desc,
+                    "main": main,
+                    "temp_min": round(daily["temperature_2m_min"][0]),
+                    "temp_max": round(daily["temperature_2m_max"][0])
                 }
     except Exception as e:
         print(f"Weather API error: {e}")
