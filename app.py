@@ -3602,7 +3602,7 @@ async def get_preload_occasions(
     item_map = {item["id"]: item for item in wardrobe_data}
     
     for occasion in preload_occasions:
-        result = await stylist.generate_outfits(wardrobe_data, occasion, 3)
+        result = await stylist.generate_outfits(wardrobe_data, occasion, None, 3)
         if "outfits" in result:
             # Enrich with image URLs
             for outfit in result["outfits"]:
