@@ -3594,18 +3594,18 @@ async def get_preload_occasions(
     
     stylist = get_stylist_service()
     
-    # Generate for 3 common occasions
+    # Generate for 2 common occasions
     preload_occasions = [
         "casual everyday",
-        "smart casual work",
-        "weekend brunch"
+        "smart casual work"
+        
     ]
     
     occasions = []
     item_map = {item["id"]: item for item in wardrobe_data}
     
     for occasion in preload_occasions:
-        result = await stylist.generate_outfits(wardrobe_data, occasion, None, 3)
+        result = await stylist.generate_outfits(wardrobe_data, occasion, None, 2)
         if "outfits" in result:
             # Enrich with image URLs
             for outfit in result["outfits"]:
