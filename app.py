@@ -3552,6 +3552,8 @@ async def handle_stylist_message(
 
 @app.get("/stylist/preload-occasions")
 async def get_preload_occasions(
+    lat: float = None,
+    lon: float = None,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -3566,6 +3568,19 @@ async def get_preload_occasions(
     user = get_current_user(db, token)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Fetch weather if location provided
+    weather_context = ""
+    if lat and lon:
+        weather = await get_weather(lat, lon)
+        if weather:
+            weather_context = f"Current weather: {weather['temp']}°C, {weather['description']}. "
+            if weather['temp'] < 10:
+                weather_context += "Suggest warm, layered outfits."
+            elif weather['temp'] < 20:
+                weather_context += "Suggest light layers, transitional pieces."
+            else:
+                weather_context += "Suggest light, breathable outfits."
     
     # Get wardrobe
     items = db.query(WardrobeItem).filter(WardrobeItem.user_id == user.id).all()
@@ -3605,7 +3620,7 @@ async def get_preload_occasions(
     item_map = {item["id"]: item for item in wardrobe_data}
     
     for occasion in preload_occasions:
-        result = await stylist.generate_outfits(wardrobe_data, occasion, None, 2)
+        result = await stylist.generate_outfits(wardrobe_data, weather_context + occasion, None, 2)
         if "outfits" in result:
             # Enrich with image URLs
             for outfit in result["outfits"]:
@@ -3616,3 +3631,26 @@ async def get_preload_occasions(
             occasions.append(result)
     
     return {"occasions": occasions}
+
+# Weather helper for AI Stylist
+async def get_weather(lat: float, lon: float) -> dict:
+    """Fetch current weather from OpenWeatherMap"""
+    import httpx
+    api_key = os.getenv("OPENWEATHERMAP_API_KEY")
+    if not api_key:
+        return None
+    try:
+        async with httpx.AsyncClient() as client:
+            url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={api_key}&units=metric"
+            response = await client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    "temp": round(data["main"]["temp"]),
+                    "feels_like": round(data["main"]["feels_like"]),
+                    "description": data["weather"][0]["description"],
+                    "main": data["weather"][0]["main"]
+                }
+    except Exception as e:
+        print(f"Weather API error: {e}")
+    return None
