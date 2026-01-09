@@ -3649,8 +3649,21 @@ async def get_weather(lat: float, lon: float) -> dict:
                     "temp": round(data["main"]["temp"]),
                     "feels_like": round(data["main"]["feels_like"]),
                     "description": data["weather"][0]["description"],
-                    "main": data["weather"][0]["main"]
+                    "main": data["weather"][0]["main"],
+                    "temp_min": round(data["main"]["temp_min"]),
+                    "temp_max": round(data["main"]["temp_max"])
                 }
     except Exception as e:
         print(f"Weather API error: {e}")
     return None
+
+@app.get("/weather")
+async def get_current_weather(
+    lat: float,
+    lon: float
+):
+    """Get current weather for location"""
+    weather = await get_weather(lat, lon)
+    if weather:
+        return weather
+    raise HTTPException(status_code=503, detail="Weather service unavailable")
