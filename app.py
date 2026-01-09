@@ -2755,6 +2755,7 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
             print(f"[VTO {job_id}] Gemini done in {time.time()-t2:.1f}s")
             
             if result.success and result.image_base64:
+                print(f"[VTO {job_id}] Starting post-processing...")
                 from avatar_endpoint import upload_to_firebase
                 from datetime import datetime
                 from rembg import remove
@@ -2792,6 +2793,7 @@ async def process_vto_job(job_id: str, user_id: int, item_ids: str, styling_note
                 cropped_bytes = output_buffer.getvalue()
                 
                 vto_url = upload_to_firebase(cropped_bytes, vto_path, content_type='image/png')
+                print(f"[VTO {job_id}] Upload complete: {vto_url}")
                 
                 job.status = "complete"
                 job.vto_url = vto_url
