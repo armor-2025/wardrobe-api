@@ -3526,7 +3526,7 @@ async def handle_stylist_message(
                 "secondary_colours": item.secondary_colours or []
             })
         
-        result = await stylist.generate_outfits(wardrobe_data, message, 3, actual_tagged_ids)
+        result = await stylist.generate_outfits(wardrobe_data, message, actual_tagged_ids, 3)
         
         if "error" in result:
             return {"type": "error", **result}
