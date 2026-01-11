@@ -29,8 +29,28 @@ You DO:
 - Keep responses to 1–3 short sentences
 - Offer to show or change something instead of lecturing
 - Use simple, modern language"""
+STYLING_KNOWLEDGE = """
+## COLOR RULES
+- Use color wheel theory: complementary (opposites), analogous (adjacent), or monochromatic (shades of one)
+- Neutrals (black, white, grey, navy, beige) pair with anything
+- 60-30-10 rule: 60% dominant color, 30% secondary, 10% accent
+- Keep tone consistency: warm tones together, cool tones together
 
-OUTFIT_GENERATION_PROMPT = """You are an expert fashion stylist. Given a user's wardrobe items with their styling metadata, create {num_outfits} complete outfit combinations for the occasion: "{occasion}".
+## PROPORTION RULES
+- Oversized top → fitted bottom (and vice versa)
+- Avoid oversized + oversized unless intentional
+- Rule of thirds: 1/3 top + 2/3 bottom is universally flattering
+
+## FORMALITY MATCHING
+- Items should be within 1-2 formality levels of each other
+- Shoes often set the overall formality tone
+"""
+
+OUTFIT_GENERATION_PROMPT = """You are an expert fashion stylist using color theory and styling principles.
+
+{styling_knowledge}
+
+Create {num_outfits} outfit combinations for: "{occasion}".
 
 USER'S WARDROBE ITEMS:
 {wardrobe_items}
@@ -38,10 +58,12 @@ USER'S WARDROBE ITEMS:
 RULES:
 1. Each outfit MUST include: one top, one bottom, one pair of shoes
 2. Outerwear and accessories are optional but encouraged when appropriate
-3. Consider formality_level matching - items should be similar formality
-4. Consider color harmony - use complementary or coordinated colors
-5. Consider material appropriateness for the occasion
+3. Apply color wheel theory for color matching
+4. Balance proportions (oversized top = fitted bottom)
+5. Match formality levels across items
 6. Only use item IDs from the provided wardrobe - never invent items
+
+In each explanation, briefly mention WHY the colors or proportions work.
 
 Return ONLY valid JSON in this exact format:
 {{
@@ -55,7 +77,7 @@ Return ONLY valid JSON in this exact format:
         "outerwear": <item_id or null>,
         "accessory": <item_id or null>
       }},
-      "explanation": "1-2 sentence explanation of why this works"
+      "explanation": "1-2 sentence explanation mentioning color harmony or proportion balance"
     }}
   ]
 }}"""
@@ -164,6 +186,7 @@ class AIStylistService:
                 tagged_prefix = f"IMPORTANT: The user has selected these specific items to build outfits around.\nThese items are FIXED and MUST ALL be included in EVERY outfit:\n{items_text}\n\nBuild all outfits around these pieces. Do not remove or substitute them.\n\n"
         
         prompt = tagged_prefix + OUTFIT_GENERATION_PROMPT.format(
+            styling_knowledge=STYLING_KNOWLEDGE,
             num_outfits=num_outfits,
             occasion=occasion,
             wardrobe_items=wardrobe_text
