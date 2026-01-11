@@ -29,6 +29,7 @@ You DO:
 - Keep responses to 1–3 short sentences
 - Offer to show or change something instead of lecturing
 - Use simple, modern language"""
+
 STYLING_KNOWLEDGE = """
 ## COLOR RULES
 - Use color wheel theory: complementary (opposites), analogous (adjacent), or monochromatic (shades of one)
@@ -46,9 +47,109 @@ STYLING_KNOWLEDGE = """
 - Shoes often set the overall formality tone
 """
 
+ACTIVITY_CONSTRAINTS = {
+    "walking": {
+        "triggers": ["walk", "sightseeing", "exploring", "errands", "shopping", "market", "museum", "city", "stroll", "tour", "travel day", "day trip", "city break"],
+        "rules": """
+ACTIVITY CONSTRAINTS (ENFORCED - DO NOT MENTION IN EXPLANATION):
+- Footwear MUST be walkable: flats, trainers, low boots, block heels only
+- NO stilettos, thin heels, or unstable footwear
+- NO restrictive silhouettes that limit movement
+- Outfit must be wearable for half a day minimum
+"""
+    },
+    "cold_weather": {
+        "triggers": ["winter", "cold", "freezing", "snow", "december", "january", "february", "autumn", "fall"],
+        "rules": """
+WEATHER CONSTRAINTS (ENFORCED - DO NOT MENTION IN EXPLANATION):
+- Outerwear is REQUIRED
+- NO sheer-only layers without warm base layers
+- NO bare legs without tights/thick socks
+- Footwear must be weather-appropriate
+"""
+    },
+    "hot_weather": {
+        "triggers": ["summer", "hot", "beach", "july", "august", "vacation", "holiday sun"],
+        "rules": """
+WEATHER CONSTRAINTS (ENFORCED - DO NOT MENTION IN EXPLANATION):
+- Breathable fabrics required
+- NO heavy layering
+- Footwear must be heat-appropriate
+"""
+    },
+    "rain": {
+        "triggers": ["rain", "rainy", "wet", "drizzle"],
+        "rules": """
+WEATHER CONSTRAINTS (ENFORCED - DO NOT MENTION IN EXPLANATION):
+- Weather-appropriate outerwear required
+- NO suede or delicate shoes
+- NO long hems that drag
+"""
+    },
+    "active": {
+        "triggers": ["gym", "workout", "run", "cycling", "sport", "hiking", "active"],
+        "rules": """
+ACTIVITY CONSTRAINTS (ENFORCED - DO NOT MENTION IN EXPLANATION):
+- Activity-appropriate footwear only
+- NO restrictive or delicate fabrics
+- Prioritise movement and comfort
+"""
+    },
+    "formal": {
+        "triggers": ["wedding", "gala", "black tie", "formal event", "ceremony"],
+        "rules": """
+FORMALITY CONSTRAINTS (ENFORCED):
+- Formal dress code required
+- Elevated footwear and accessories expected
+- Smart tailoring prioritised
+"""
+    }
+}
+
+EXPLANATION_RULES = """
+## EXPLANATION GUIDELINES (STRICT)
+
+Explanations must TEACH STYLE, not state the obvious.
+
+✅ FOCUS ON:
+- Color harmony (complementary, analogous, monochromatic)
+- Proportion balance (volume distribution, rule of thirds)
+- Texture contrast (soft vs structured, matte vs shine)
+- Tonal cohesion (warm/cool consistency)
+- Why pieces elevate each other
+
+❌ NEVER MENTION:
+- "Keeps you warm" / "Protects from cold"
+- "Comfortable for walking" / "Practical"
+- "Weather-appropriate" / "Good for rain"
+- Any obvious functionality
+
+Practicality is enforced silently. Explanations educate on taste.
+
+GOOD: "The longer coat balances the fluid skirt, while the neutral palette keeps it refined."
+BAD: "The coat keeps you warm and the boots are practical for walking."
+"""
+
+
+def get_activity_constraints(occasion: str) -> str:
+    """Detect activity type and return hard constraints"""
+    occasion_lower = occasion.lower()
+    constraints = []
+    
+    for activity, config in ACTIVITY_CONSTRAINTS.items():
+        if any(trigger in occasion_lower for trigger in config["triggers"]):
+            constraints.append(config["rules"])
+    
+    return "\n".join(constraints) if constraints else ""
+
+
 OUTFIT_GENERATION_PROMPT = """You are an expert fashion stylist using color theory and styling principles.
 
 {styling_knowledge}
+
+{activity_constraints}
+
+{explanation_rules}
 
 Create {num_outfits} outfit combinations for: "{occasion}".
 
@@ -57,13 +158,18 @@ USER'S WARDROBE ITEMS:
 
 RULES:
 1. Each outfit MUST include: one top, one bottom, one pair of shoes
-2. Outerwear and accessories are optional but encouraged when appropriate
-3. Apply color wheel theory for color matching
-4. Balance proportions (oversized top = fitted bottom)
-5. Match formality levels across items
-6. Only use item IDs from the provided wardrobe - never invent items
-
-In each explanation, briefly mention WHY the colors or proportions work.
+2. Accessories STRONGLY ENCOURAGED - add at least one per outfit:
+   - Bags: almost always (crossbody for walking, tote for work, clutch for evening)
+   - Sunglasses: any daytime outdoor occasion
+   - Jewelry: elevates most looks
+   - Scarves/belts: adds texture and interest
+   - Hats: weather-appropriate only (sun hat for heat, beanie for cold)
+3. Outerwear REQUIRED if weather/activity demands
+4. Apply color wheel theory for color matching
+5. Balance proportions (oversized top = fitted bottom)
+6. Match formality levels across items
+7. Activity and weather constraints are NON-NEGOTIABLE
+8. Only use item IDs from the provided wardrobe - never invent items
 
 Return ONLY valid JSON in this exact format:
 {{
@@ -77,7 +183,7 @@ Return ONLY valid JSON in this exact format:
         "outerwear": <item_id or null>,
         "accessory": <item_id or null>
       }},
-      "explanation": "1-2 sentence explanation mentioning color harmony or proportion balance"
+      "explanation": "1-2 sentences about COLOR HARMONY, PROPORTION, or TEXTURE BALANCE only"
     }}
   ]
 }}"""
@@ -173,6 +279,9 @@ class AIStylistService:
         # Format wardrobe for prompt
         wardrobe_text = self._format_wardrobe_for_prompt(wardrobe_items)
         
+        # Get activity-based constraints
+        activity_constraints = get_activity_constraints(occasion)
+        
         # Build the prompt
         # Handle tagged items if provided (supports multiple)
         tagged_prefix = ""
@@ -187,6 +296,8 @@ class AIStylistService:
         
         prompt = tagged_prefix + OUTFIT_GENERATION_PROMPT.format(
             styling_knowledge=STYLING_KNOWLEDGE,
+            activity_constraints=activity_constraints,
+            explanation_rules=EXPLANATION_RULES,
             num_outfits=num_outfits,
             occasion=occasion,
             wardrobe_items=wardrobe_text
