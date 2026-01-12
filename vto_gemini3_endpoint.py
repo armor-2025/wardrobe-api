@@ -293,14 +293,14 @@ async def generate_vto(request: VTORequest):
                 )
         
         # LOG WHAT GEMINI ACTUALLY RETURNED
-        print(f"[VTO {job_id}] ❌ No image in response. Parts received: {len(response.candidates[0].content.parts)}")
+        print(f"[VTO] ❌ No image in response. Parts received: {len(response.candidates[0].content.parts)}")
         for i, part in enumerate(response.candidates[0].content.parts):
             if hasattr(part, 'text') and part.text:
-                print(f"[VTO {job_id}] Text response: {part.text[:500]}")
+                print(f"[VTO] Text response: {part.text[:500]}")
         if hasattr(response.candidates[0], 'finish_reason'):
-            print(f"[VTO {job_id}] Finish reason: {response.candidates[0].finish_reason}")
+            print(f"[VTO] Finish reason: {response.candidates[0].finish_reason}")
         if hasattr(response, 'prompt_feedback'):
-            print(f"[VTO {job_id}] Prompt feedback: {response.prompt_feedback}")
+            print(f"[VTO] Prompt feedback: {response.prompt_feedback}")
         
         return VTOResponse(success=False, error="No image generated", items_count=len(request.garments))
     except Exception as e:
