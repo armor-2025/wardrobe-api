@@ -342,6 +342,22 @@ class AIStylistService:
                     if item_id is not None and item_id not in valid_ids:
                         return {"error": "Generation error - please try again", "type": "invalid_items"}
             
+            # Enrich outfits with image URLs for frontend display
+            item_lookup = {item["id"]: item for item in wardrobe_items}
+            for outfit in result.get("outfits", []):
+                outfit["item_details"] = []
+                for slot, item_id in outfit.get("items", {}).items():
+                    if item_id is not None and item_id in item_lookup:
+                        item = item_lookup[item_id]
+                        outfit["item_details"].append({
+                            "id": item_id,
+                            "slot": slot,
+                            "image_url": item.get("image_url", ""),
+                            "category": item.get("category", ""),
+                            "color": item.get("color", ""),
+                            "description": item.get("description", "")
+                        })
+            
             return result
             
         except json.JSONDecodeError as e:
