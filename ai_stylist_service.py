@@ -232,6 +232,7 @@ class AIStylistService:
             "bottoms": [],
             "shoes": [],
             "outerwear": [],
+            "bags": [],
             "accessories": []
         }
         
@@ -245,7 +246,9 @@ class AIStylistService:
                 categorized["shoes"].append(item)
             elif cat in ['outerwear', 'jackets', 'coats']:
                 categorized["outerwear"].append(item)
-            elif cat in ['accessories', 'bags', 'jewelry']:
+            elif cat in ['bags']:
+                categorized["bags"].append(item)
+            elif cat in ['accessories', 'jewelry']:
                 categorized["accessories"].append(item)
         
         return categorized
