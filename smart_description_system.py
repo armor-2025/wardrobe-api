@@ -13,7 +13,7 @@ class SmartDescriptionSystem:
         # Check for color
         color_words = ['black', 'white', 'blue', 'red', 'green', 'yellow', 'pink', 'purple',
                       'navy', 'burgundy', 'khaki', 'olive', 'beige', 'cream', 'grey', 'gray',
-                      'brown', 'tan', 'camel', 'indigo', 'emerald']
+                      'brown', 'tan', 'camel', 'indigo', 'emerald', 'rust', 'sage', 'charcoal']
         has_color = any(color in name_lower for color in color_words)
         
         # Check for style descriptors

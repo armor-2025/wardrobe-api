@@ -80,6 +80,7 @@ Return ONLY ONE of these categories:
 - bottom
 - outerwear
 - shoes
+- bag
 - accessory
 
 Return only the category word, nothing else."""
@@ -116,7 +117,7 @@ Return only the category word, nothing else."""
         outfit_parts = []
         
         # Order by typical wearing order: outerwear, top, bottom, shoes, accessories
-        category_order = ['outerwear', 'top', 'dress', 'bottom', 'shoes', 'accessory']
+        category_order = ['outerwear', 'top', 'dress', 'bottom', 'shoes', 'bag', 'accessory']
         
         for category in category_order:
             matching = [g for g in garments if g['category'] == category]
