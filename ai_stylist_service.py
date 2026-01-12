@@ -158,18 +158,20 @@ USER'S WARDROBE ITEMS:
 
 RULES:
 1. Each outfit MUST include: one top, one bottom, one pair of shoes
-2. Accessories STRONGLY ENCOURAGED - add at least one per outfit:
-   - Bags: almost always (crossbody for walking, tote for work, clutch for evening)
-   - Sunglasses: any daytime outdoor occasion
-   - Jewelry: elevates most looks
-   - Scarves/belts: adds texture and interest
-   - Hats: weather-appropriate only (sun hat for heat, beanie for cold)
-3. Outerwear REQUIRED if weather/activity demands
-4. Apply color wheel theory for color matching
-5. Balance proportions (oversized top = fitted bottom)
-6. Match formality levels across items
-7. Activity and weather constraints are NON-NEGOTIABLE
-8. Only use item IDs from the provided wardrobe - never invent items
+2. Bags are ESSENTIAL for women's outfits - include one in almost every outfit:
+   - Crossbody/shoulder bag: casual daytime, shopping, errands
+   - Tote: work, travel, beach
+   - Clutch/mini bag: evening events, dinner dates
+   - Only skip bag for: gym, athletic activities, very short outings
+3. Sunglasses: REQUIRED for any daytime outdoor occasion (walking, brunch, beach, shopping)
+4. Other accessories encouraged (jewelry, scarves, belts, hats)
+5. Outerwear REQUIRED if weather/activity demands
+6. Apply color wheel theory for color matching
+7. Balance proportions (oversized top = fitted bottom)
+8. Match formality levels across items
+9. Activity and weather constraints are NON-NEGOTIABLE
+10. VARIETY IS KEY: Do NOT repeat the same items across outfits. Use DIFFERENT pieces for each outfit unless wardrobe is very limited.
+11. Only use item IDs from the provided wardrobe - never invent items
 
 Return ONLY valid JSON in this exact format:
 {{
@@ -181,6 +183,7 @@ Return ONLY valid JSON in this exact format:
         "bottom": <item_id>,
         "shoes": <item_id>,
         "outerwear": <item_id or null>,
+        "bag": <item_id or null>,
         "accessory": <item_id or null>
       }},
       "explanation": "1-2 sentences about COLOR HARMONY, PROPORTION, or TEXTURE BALANCE only"
@@ -206,6 +209,9 @@ class AIStylistService:
     
     def _format_wardrobe_for_prompt(self, items: List[Dict]) -> str:
         """Format wardrobe items for the GPT prompt"""
+        import random
+        items = items.copy()  # Don't modify original
+        random.shuffle(items)  # Avoid positional bias - GPT favors early items
         formatted = []
         for item in items:
             item_str = f"""ID: {item['id']}
