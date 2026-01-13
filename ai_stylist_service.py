@@ -352,7 +352,7 @@ class AIStylistService:
                         outfit["item_details"].append({
                             "id": item_id,
                             "slot": slot,
-                            "image_url": item.get("image_url", ""),
+                            "imageUrl": item.get("image_url", ""),
                             "category": item.get("category", ""),
                             "color": item.get("color", ""),
                             "description": item.get("description", "")
