@@ -3713,3 +3713,19 @@ async def get_current_weather(
     if weather:
         return weather
     raise HTTPException(status_code=503, detail="Weather service unavailable")
+
+@app.post("/canvas/format-items")
+async def format_canvas_items(image_urls: List[str] = []):
+    """Format canvas URLs into the same structure as AI Stylist items"""
+    return {
+        "item_details_list": [
+            {
+                "id": f"canvas_{i}",
+                "slot": f"item{i}",
+                "imageUrl": url,
+                "category": "",
+                "color": ""
+            }
+            for i, url in enumerate(image_urls) if url
+        ]
+    }
