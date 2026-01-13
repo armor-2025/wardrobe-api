@@ -3446,11 +3446,13 @@ async def generate_outfits(
     if "outfits" in result:
         item_map = {item["id"]: item for item in wardrobe_data}
         for outfit in result["outfits"]:
-            outfit["item_details"] = []
+            outfit["item_details"] = {}
+            outfit["item_details_list"] = []
             for slot, item_id in outfit["items"].items():
                 if item_id and item_id in item_map:
                     item = item_map[item_id]
-                    outfit["item_details"].append({
+                    outfit["item_details"][slot] = item
+                    outfit["item_details_list"].append({
                         "id": item_id,
                         "slot": slot,
                         "imageUrl": item.get("image_url", ""),
@@ -3544,11 +3546,13 @@ async def handle_stylist_message(
         # Enrich with image URLs
         item_map = {item["id"]: item for item in wardrobe_data}
         for outfit in result.get("outfits", []):
-            outfit["item_details"] = []
+            outfit["item_details"] = {}
+            outfit["item_details_list"] = []
             for slot, item_id in outfit["items"].items():
                 if item_id and item_id in item_map:
                     item = item_map[item_id]
-                    outfit["item_details"].append({
+                    outfit["item_details"][slot] = item
+                    outfit["item_details_list"].append({
                         "id": item_id,
                         "slot": slot,
                         "imageUrl": item.get("image_url", ""),
@@ -3638,11 +3642,13 @@ async def get_preload_occasions(
         if "outfits" in result:
             # Enrich with image URLs
             for outfit in result["outfits"]:
-                outfit["item_details"] = []
+                outfit["item_details"] = {}
+                outfit["item_details_list"] = []
                 for slot, item_id in outfit["items"].items():
                     if item_id and item_id in item_map:
                         item = item_map[item_id]
-                        outfit["item_details"].append({
+                        outfit["item_details"][slot] = item
+                        outfit["item_details_list"].append({
                             "id": item_id,
                             "slot": slot,
                             "imageUrl": item.get("image_url", ""),
