@@ -3446,10 +3446,17 @@ async def generate_outfits(
     if "outfits" in result:
         item_map = {item["id"]: item for item in wardrobe_data}
         for outfit in result["outfits"]:
-            outfit["item_details"] = {}
+            outfit["item_details"] = []
             for slot, item_id in outfit["items"].items():
                 if item_id and item_id in item_map:
-                    outfit["item_details"][slot] = item_map[item_id]
+                    item = item_map[item_id]
+                    outfit["item_details"].append({
+                        "id": item_id,
+                        "slot": slot,
+                        "imageUrl": item.get("image_url", ""),
+                        "category": item.get("category", ""),
+                        "color": item.get("color", "")
+                    })
     
     return result
 
