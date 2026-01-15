@@ -192,7 +192,13 @@ Images 3+: Render these garments with 100% texture fidelity. Do not simplify fab
 """
         face_instruction = " The face MUST match Image 1 (face closeup) exactly."
     
-    prompt = f"""{identity_anchor}### VISUAL AUDIT (MANDATORY FIRST STEP)
+    # Strong anti-gallery instruction
+    anti_gallery = """### OUTPUT FORMAT (CRITICAL - READ FIRST)
+Generate EXACTLY ONE single image. NOT a collage. NOT a gallery. NOT multiple views. NOT side-by-side comparisons. NOT before/after. ONE portrait image of ONE person in ONE outfit.
+
+"""
+    
+    prompt = f"""{anti_gallery}{identity_anchor}### VISUAL AUDIT (MANDATORY FIRST STEP)
 Before generating, analyze each garment image:
 1. Identify the specific fabric texture, pattern, and color of each garment in Images {garment_start_index}-{garment_end_index}.
 2. Note any logos, buttons, zippers, or unique details that must be preserved.
@@ -223,8 +229,9 @@ Analyze the provided garment images carefully. Apply them in the following order
 - **Silhouette Preservation:** Maintain EXACT fit and silhouette - if oversized keep oversized, if fitted keep fitted, if wide-leg keep wide-leg.
 {styling_section}
 
-### COMPOSITION (MANDATORY)
-- Single image. Portrait 9:16 aspect ratio.
+### COMPOSITION (MANDATORY - SINGLE IMAGE ONLY)
+- OUTPUT: ONE SINGLE IMAGE ONLY. No grids, no galleries, no collages, no multiple views.
+- Portrait 9:16 aspect ratio.
 - Subject fills 95% vertical frame. Head near top edge, shoes near bottom edge.
 - 85mm prime lens, eye-level. High micro-contrast and sharp focus on garment texture. No wide-angle distortion.
 
