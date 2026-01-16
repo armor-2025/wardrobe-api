@@ -1,6 +1,7 @@
 """
-ASOS API Service for RapidAPI
-Handles all ASOS API calls from the backend
+ASOS API Service - DataCrawler API (asos10)
+==========================================
+Updated to use the working DataCrawler API from RapidAPI
 """
 import os
 import requests
@@ -9,18 +10,18 @@ from fastapi import HTTPException
 
 
 class AsosService:
-    """Service class for ASOS RapidAPI integration"""
+    """Service class for ASOS DataCrawler RapidAPI integration"""
     
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("RAPIDAPI_KEY", "")
-        self.base_url = "https://asos2.p.rapidapi.com"
+        self.base_url = "https://asos10.p.rapidapi.com"
         self.headers = {
             "X-RapidAPI-Key": self.api_key,
-            "X-RapidAPI-Host": "asos2.p.rapidapi.com"
+            "X-RapidAPI-Host": "asos10.p.rapidapi.com"
         }
         
         if not self.api_key or self.api_key == "":
-            print("WARNING: RAPIDAPI_KEY not set. ASOS search will not work.")
+            print("⚠️  WARNING: RAPIDAPI_KEY not set. ASOS search will not work.")
     
     def search_products(
         self,
@@ -31,22 +32,22 @@ class AsosService:
         currency: str = "USD",
         store: str = "US",
         size_schema: str = "US",
-        lang: str = "en-US",
-        sort: str = "freshness"
+        lang: str = "en",
+        sort: str = "recommended"
     ) -> Dict[str, Any]:
         """
-        Search ASOS products
+        Search ASOS products using DataCrawler API
         
         Args:
-            query: Search term (e.g., "red dress")
+            query: Search term (e.g., "red dress", "black jeans")
             limit: Number of results (max 50)
             offset: Pagination offset
             country: Country code (US, GB, etc.)
-            currency: Currency code (USD, GBP, etc.)
-            store: Store location
-            size_schema: Size system (US, UK, etc.)
-            lang: Language code
-            sort: Sort order (freshness, pricedesc, priceasc, relevance)
+            currency: Currency code (USD, GBP, EUR, etc.)
+            store: Store location (US, GB, etc.)
+            size_schema: Size system (US, UK, EU, etc.)
+            lang: Language code (en, etc.)
+            sort: Sort order (recommended, freshness, pricedesc, priceasc)
         
         Returns:
             Dictionary with search results
@@ -57,60 +58,107 @@ class AsosService:
                 detail="RAPIDAPI_KEY not configured on server"
             )
         
-        url = f"{self.base_url}/products/v2/list"
+        url = f"{self.base_url}/api/v1/getProductListBySearchTerm"
         
         params = {
-            "store": store,
-            "offset": offset,
+            "searchTerm": query,
             "limit": min(limit, 50),
+            "offset": offset,
             "country": country,
-            "sort": sort,
-            "q": query,
             "currency": currency,
+            "store": store,
             "sizeSchema": size_schema,
-            "lang": lang,
+            "languageShort": lang,
+            "sort": sort,
         }
         
         try:
-            response = requests.get(url, headers=self.headers, 
-params=params, timeout=30)
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            
+            # Check if response is valid
+            if not data.get("status"):
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"ASOS API error: {data.get('message', 'Unknown error')}"
+                )
+            
+            return data
+            
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 401:
-                raise HTTPException(status_code=401, detail="Invalid RapidAPI key")
+                raise HTTPException(status_code=401, detail="Invalid ASOS API key")
             elif e.response.status_code == 429:
-                raise HTTPException(status_code=429, detail="Rate limit exceeded")
+                raise HTTPException(status_code=429, detail="ASOS API rate limit exceeded")
             else:
-                raise HTTPException(
-                    status_code=e.response.status_code,
-                    detail=f"ASOS API error: {str(e)}"
-                )
+                raise HTTPException(status_code=e.response.status_code, detail=str(e))
         except requests.exceptions.Timeout:
             raise HTTPException(status_code=504, detail="ASOS API timeout")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"ASOS API error: {str(e)}")
+        except requests.exceptions.RequestException as e:
+            raise HTTPException(status_code=500, detail=f"ASOS API request failed: {str(e)}")
     
-    def get_product_details(
+    def search_products_simple(
         self,
-        product_id: str,
-        lang: str = "en-US",
-        store: str = "US",
-        size_schema: str = "US",
+        query: str,
+        limit: int = 20,
+        country: str = "US",
         currency: str = "USD"
-    ) -> Dict[str, Any]:
+    ) -> List[Dict[str, Any]]:
+        """
+        Simplified search that returns a clean list of products
+        
+        Args:
+            query: Search term
+            limit: Number of results
+            country: Country code
+            currency: Currency code
+        
+        Returns:
+            List of product dictionaries with standardized fields
+        """
+        raw_data = self.search_products(
+            query=query,
+            limit=limit,
+            country=country,
+            currency=currency,
+            store=country  # Use country as store
+        )
+        
+        products = []
+        raw_products = raw_data.get("data", {}).get("products", [])
+        
+        for item in raw_products:
+            product = {
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "brand": item.get("brandName"),
+                "color": item.get("colour"),
+                "price": item.get("price", {}).get("current", {}).get("value"),
+                "price_text": item.get("price", {}).get("current", {}).get("text"),
+                "original_price": item.get("price", {}).get("previous", {}).get("value"),
+                "original_price_text": item.get("price", {}).get("previous", {}).get("text"),
+                "is_on_sale": item.get("price", {}).get("isMarkedDown", False),
+                "image_url": f"https://{item.get('imageUrl')}" if item.get("imageUrl") else None,
+                "additional_images": [
+                    f"https://{img}" for img in item.get("additionalImageUrls", [])
+                ],
+                "product_url": f"https://www.asos.com/{item.get('url')}" if item.get("url") else None,
+                "is_selling_fast": item.get("isSellingFast", False),
+            }
+            products.append(product)
+        
+        return products
+    
+    def get_product_detail(self, product_id: int) -> Dict[str, Any]:
         """
         Get detailed information about a specific product
         
         Args:
             product_id: ASOS product ID
-            lang: Language code
-            store: Store location
-            size_schema: Size system
-            currency: Currency code
         
         Returns:
-            Dictionary with product details
+            Product detail dictionary
         """
         if not self.api_key:
             raise HTTPException(
@@ -118,118 +166,96 @@ params=params, timeout=30)
                 detail="RAPIDAPI_KEY not configured on server"
             )
         
-        url = f"{self.base_url}/products/v3/detail"
+        url = f"{self.base_url}/api/v1/getProductById"
         
         params = {
-            "id": product_id,
-            "lang": lang,
-            "store": store,
-            "sizeSchema": size_schema,
-            "currency": currency,
+            "productId": product_id,
+            "country": "US",
+            "currency": "USD",
+            "store": "US",
+            "languageShort": "en",
+            "sizeSchema": "US"
         }
         
         try:
-            response = requests.get(url, headers=self.headers, 
-params=params, timeout=30)
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                raise HTTPException(status_code=404, detail="Product not found")
-            else:
-                raise HTTPException(
-                    status_code=e.response.status_code,
-                    detail=f"ASOS API error: {str(e)}"
-                )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"ASOS API error: {str(e)}")
-    def get_categories(
-        self,
-        country: str = "US",
-        lang: str = "en-US"
-    ) -> Dict[str, Any]:
-        """
-        Get available ASOS categories
-        
-        Args:
-            country: Country code
-            lang: Language code
-        
-        Returns:
-            Dictionary with category data
-        """
-        if not self.api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="RAPIDAPI_KEY not configured on server"
-            )
-        
-        url = f"{self.base_url}/categories/list"
-        
-        params = {
-            "country": country,
-            "lang": lang,
-        }
-        
-        try:
-            response = requests.get(url, headers=self.headers, 
-params=params, timeout=30)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"ASOS API error: {str(e)}")
+            raise HTTPException(status_code=e.response.status_code, detail=str(e))
+        except requests.exceptions.RequestException as e:
+            raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
     
-    def autocomplete(
+    def shop_the_look(
         self,
-        query: str,
-        lang: str = "en-US",
+        items: List[str],
+        limit_per_item: int = 10,
         country: str = "US",
-        currency: str = "USD",
-        size_schema: str = "US"
-    ) -> Dict[str, Any]:
+        currency: str = "USD"
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Get autocomplete suggestions
+        Search for similar products for multiple items (shop the whole look)
         
         Args:
-            query: Partial search term
-            lang: Language code
+            items: List of search terms (e.g., ["black blazer", "white shirt", "navy trousers"])
+            limit_per_item: Number of results per item
             country: Country code
             currency: Currency code
-            size_schema: Size system
         
         Returns:
-            Dictionary with suggestions
+            Dictionary mapping each search term to its results
         """
-        if not self.api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="RAPIDAPI_KEY not configured on server"
-            )
+        results = {}
         
-        url = f"{self.base_url}/auto-complete"
+        for item in items:
+            try:
+                products = self.search_products_simple(
+                    query=item,
+                    limit=limit_per_item,
+                    country=country,
+                    currency=currency
+                )
+                results[item] = products
+            except Exception as e:
+                print(f"Error searching for '{item}': {e}")
+                results[item] = []
         
-        params = {
-            "q": query,
-            "lang": lang,
-            "country": country,
-            "currency": currency,
-            "sizeSchema": size_schema,
-        }
-        
-        try:
-            response = requests.get(url, headers=self.headers, 
-params=params, timeout=30)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"ASOS API error: {str(e)}")
+        return results
 
 
-_asos_service = None
+# Create a default instance for easy importing
+_default_service = None
 
 def get_asos_service() -> AsosService:
-    """Get or create the ASOS service singleton"""
-    global _asos_service
-    if _asos_service is None:
-        _asos_service = AsosService()
-    return _asos_service
+    """Get or create the default ASOS service instance"""
+    global _default_service
+    if _default_service is None:
+        _default_service = AsosService()
+    return _default_service
+
+
+# Quick test if run directly
+if __name__ == "__main__":
+    import json
+    
+    print("Testing ASOS DataCrawler Service...")
+    
+    api_key = os.getenv("RAPIDAPI_KEY")
+    if not api_key:
+        print("Set RAPIDAPI_KEY environment variable first!")
+        print("export RAPIDAPI_KEY=your_key_here")
+        exit(1)
+    
+    service = AsosService(api_key)
+    
+    # Test search
+    print("\n🔍 Searching for 'black dress'...")
+    products = service.search_products_simple("black dress", limit=3)
+    
+    for i, p in enumerate(products, 1):
+        print(f"\n{i}. {p['name']}")
+        print(f"   Brand: {p['brand']}")
+        print(f"   Price: {p['price_text']}")
+        print(f"   Image: {p['image_url']}")
+    
+    print(f"\n✅ Found {len(products)} products!")

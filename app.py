@@ -318,16 +318,16 @@ def asos_search(
     sort: Optional[str] = Query("freshness"),
 ):
     asos = get_asos_service()
-    print(f"DEBUG: search_params = {search_params}")
+    print(f"DEBUG: ASOS search for: {q}")
     data = asos.search_products(query=q, limit=limit, offset=offset, country=country, currency=currency, sort=sort)
     products = []
-    for item in data.get("products", []):
+    for item in data.get("data", {}).get("products", []):
         price_data = item.get("price", {}).get("current", {})
         price_value = price_data.get("value", 0.0)
         
         # Apply price filters if specified
-        max_price = search_params.get("max_price")
-        min_price = search_params.get("min_price")
+        max_price = None  # TODO: add price filter params
+        min_price = None  # TODO: add price filter params
         
         if max_price and price_value > max_price:
             continue  # Skip items over max price
