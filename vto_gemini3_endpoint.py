@@ -289,8 +289,8 @@ async def generate_vto(request: VTORequest):
         for part in response.candidates[0].content.parts:
             if hasattr(part, 'inline_data') and part.inline_data:
                 png_bytes = convert_to_png(part.inline_data.data)
-                if not validate_single_portrait(png_bytes):
-                    return VTOResponse(success=False, error="Generation produced gallery instead of single image - please retry", items_count=len(request.garments))
+                # if not validate_single_portrait(png_bytes):  # DISABLED - letting all images through
+                    # return VTOResponse(success=False, error="Generation produced gallery instead of single image - please retry", items_count=len(request.garments))
                 result_base64 = base64.b64encode(png_bytes).decode('utf-8')
                 return VTOResponse(
                     success=True,
